@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FP&A Monitor Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .dashboard-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+        }
+        .card {
+            box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+            margin-bottom: 1.5rem;
+            border: none;
+        }
+        .metric-card {
+            transition: transform 0.2s;
+        }
+        .metric-card:hover {
+            transform: translateY(-5px);
+        }
+        .anomaly-high {
+            border-left: 4px solid #dc3545;
+        }
+        .anomaly-medium {
+            border-left: 4px solid #ffc107;
+        }
+        .anomaly-low {
+            border-left: 4px solid #0dcaf0;
+        }
+        .news-item {
+            transition: all 0.2s;
+        }
+        .news-item:hover {
+            box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15);
+        }
+        .news-img {
+            width: 100%;
+            height: 180px;
+            object-fit: cover;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+        }
+        .rate-badge {
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-header">
+        <div class="container">
+            <h1><i class="bi bi-graph-up-arrow"></i> FP&A Monitor Dashboard</h1>
+            <p class="lead mb-0">Real-time Financial Analysis & Nordic Market Intelligence</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- FP&A Metrics Section -->
+        <section id="fpa-section" class="mb-5">
+            <h2 class="mb-4"><i class="bi bi-bar-chart-line"></i> FP&A Metrics & Anomalies</h2>
+            <div id="fpa-loading" class="loading">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p>Loading FP&A data...</p>
+            </div>
+            <div id="fpa-content">
+                <div class="row" id="anomalies-container"></div>
+                <div class="row" id="recommendations-container"></div>
+            </div>
+        </section>
+
+        <!-- Exchange Rates Section -->
+        <section id="exchange-rates-section" class="mb-5">
+            <h2 class="mb-4"><i class="bi bi-currency-exchange"></i> Nordic Exchange Rates</h2>
+            <div id="rates-loading" class="loading">
+                <div class="spinner-border text-success" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p>Loading exchange rates...</p>
+            </div>
+            <div id="rates-content" class="row"></div>
+        </section>
+
+        <!-- News Section -->
+        <section id="news-section" class="mb-5">
+            <h2 class="mb-4"><i class="bi bi-newspaper"></i> Nordic Economic News</h2>
+            <div id="news-loading" class="loading">
+                <div class="spinner-border text-info" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p>Loading news...</p>
+            </div>
+            <div id="news-content" class="row"></div>
+        </section>
+    </div>
+
+    <footer class="bg-dark text-white text-center py-4 mt-5">
+        <div class="container">
+            <p class="mb-0">&copy; 2025 FP&A Monitor Dashboard | Powered by Flask & Bootstrap</p>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Load FP&A Metrics
+        async function loadFPAMetrics() {
+            const loading = document.getElementById('fpa-loading');
+            const content = document.getElementById('fpa-content');
+            const anomaliesContainer = document.getElementById('anomalies-container');
+            const recommendationsContainer = document.getElementById('recommendations-container');
+            
+            loading.style.display = 'block';
+            
+            try {
+                const response = await fetch('/api/fpa-metrics');
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    // Display anomalies
+                    if (data.data.anomalies && data.data.anomalies.length > 0) {
+                        anomaliesContainer.innerHTML = '<div class="col-12"><h4 class="mb-3">Detected Anomalies</h4></div>';
+                        data.data.anomalies.forEach(anomaly => {
+                            const severityClass = anomaly.severity === 'HIGH' ? 'anomaly-high' : 
+                                                 anomaly.severity === 'MEDIUM' ? 'anomaly-medium' : 'anomaly-low';
+                            const severityBadge = anomaly.severity === 'HIGH' ? 'danger' : 
+                                                 anomaly.severity === 'MEDIUM' ? 'warning' : 'info';
+                            
+                            const card = `
+                                <div class="col-md-6 col-lg-4">
+                                    <div class="card metric-card ${severityClass}">
+                                        <div class="card-body">
+                                            <h5 class="card-title">${anomaly.metric.replace('_', ' ').toUpperCase()}</h5>
+                                            <p class="card-text">
+                                                <strong>Value:</strong> ${anomaly.value.toFixed(2)}<br>
+                                                <strong>Z-Score:</strong> ${anomaly.z_score.toFixed(2)}<br>
+                                                <strong>Date:</strong> ${anomaly.date}
+                                            </p>
+                                            <span class="badge bg-${severityBadge}">${anomaly.severity}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                            anomaliesContainer.innerHTML += card;
+                        });
+                    }
+                    
+                    // Display recommendations
+                    if (data.data.recommendations && data.data.recommendations.length > 0) {
+                        recommendationsContainer.innerHTML = '<div class="col-12"><h4 class="mb-3 mt-4">Recommendations</h4></div>';
+                        const recCard = `
+                            <div class="col-12">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <ul class="list-group list-group-flush">
+                                            ${data.data.recommendations.map(rec => 
+                                                `<li class="list-group-item"><i class="bi bi-lightbulb text-warning"></i> ${rec}</li>`
+                                            ).join('')}
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        recommendationsContainer.innerHTML += recCard;
+                    }
+                } else {
+                    anomaliesContainer.innerHTML = `<div class="col-12"><div class="alert alert-warning">No FP&A data available</div></div>`;
+                }
+            } catch (error) {
+                anomaliesContainer.innerHTML = `<div class="col-12"><div class="alert alert-danger">Error loading FP&A data: ${error.message}</div></div>`;
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        // Load Exchange Rates
+        async function loadExchangeRates() {
+            const loading = document.getElementById('rates-loading');
+            const content = document.getElementById('rates-content');
+            
+            loading.style.display = 'block';
+            
+            try {
+                const response = await fetch('/api/exchange-rates');
+                const data = await response.json();
+                
+                if (data.success && data.rates) {
+                    content.innerHTML = '';
+                    Object.entries(data.rates).forEach(([code, info]) => {
+                        const card = `
+                            <div class="col-md-6 col-lg-3">
+                                <div class="card text-center metric-card">
+                                    <div class="card-body">
+                                        <h5 class="card-title">${code}</h5>
+                                        <p class="text-muted small">${info.name}</p>
+                                        <p class="rate-badge text-success">${typeof info.rate === 'number' ? info.rate.toFixed(4) : info.rate}</p>
+                                        <p class="text-muted small">per EUR</p>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        content.innerHTML += card;
+                    });
+                    content.innerHTML += `<div class="col-12 mt-2"><p class="text-muted small">Last updated: ${data.date || 'N/A'}</p></div>`;
+                } else {
+                    content.innerHTML = `<div class="col-12"><div class="alert alert-warning">Unable to load exchange rates</div></div>`;
+                }
+            } catch (error) {
+                content.innerHTML = `<div class="col-12"><div class="alert alert-danger">Error loading exchange rates: ${error.message}</div></div>`;
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        // Load News
+        async function loadNews() {
+            const loading = document.getElementById('news-loading');
+            const content = document.getElementById('news-content');
+            
+            loading.style.display = 'block';
+            
+            try {
+                const response = await fetch('/api/news');
+                const data = await response.json();
+                
+                if (data.success && data.articles && data.articles.length > 0) {
+                    content.innerHTML = '';
+                    data.articles.forEach(article => {
+                        const publishedDate = new Date(article.publishedAt).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        });
+                        
+                        const card = `
+                            <div class="col-md-6 col-lg-4">
+                                <div class="card news-item h-100">
+                                    <img src="${article.urlToImage || 'https://via.placeholder.com/300x180?text=News'}" 
+                                         class="card-img-top news-img" 
+                                         alt="${article.title}"
+                                         onerror="this.src='https://via.placeholder.com/300x180?text=No+Image'">
+                                    <div class="card-body d-flex flex-column">
+                                        <h5 class="card-title">${article.title}</h5>
+                                        <p class="card-text text-muted small flex-grow-1">${article.description || 'No description available'}</p>
+                                        <div>
+                                            <p class="text-muted small mb-2">
+                                                <i class="bi bi-newspaper"></i> ${article.source?.name || 'Unknown Source'}<br>
+                                                <i class="bi bi-calendar"></i> ${publishedDate}
+                                            </p>
+                                            <a href="${article.url}" target="_blank" class="btn btn-primary btn-sm">
+                                                Read Full Article <i class="bi bi-box-arrow-up-right"></i>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        content.innerHTML += card;
+                    });
+                    
+                    if (data.note) {
+                        content.innerHTML += `<div class="col-12 mt-3"><div class="alert alert-info"><i class="bi bi-info-circle"></i> ${data.note}</div></div>`;
+                    }
+                } else {
+                    content.innerHTML = `<div class="col-12"><div class="alert alert-warning">No news articles available</div></div>`;
+                }
+            } catch (error) {
+                content.innerHTML = `<div class="col-12"><div class="alert alert-danger">Error loading news: ${error.message}</div></div>`;
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', () => {
+            loadFPAMetrics();
+            loadExchangeRates();
+            loadNews();
+            
+            // Refresh data every 5 minutes
+            setInterval(() => {
+                loadFPAMetrics();
+                loadExchangeRates();
+                loadNews();
+            }, 300000);
+        });
+    </script>
+</body>
+</html>
