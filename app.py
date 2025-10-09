@@ -2,203 +2,221 @@ import os
 import io
 import json
 import logging
-from datetime import datetime, timedelta
-from typing import List, Dict, Any, Optional
+from datetime import datetime
+from typing import List, Dict, Any
 
 import numpy as np
 import pandas as pd
-import requests
-from flask import Flask, render_template, jsonify, request, session, send_from_directory
-from werkzeug.utils import secure_filename
+from flask import Flask, render_template, jsonify, request, send_file
 from werkzeug.exceptions import RequestEntityTooLarge, BadRequest
-
-from monitor import MetricMonitor
 
 app = Flask(__name__)
 
-# Configuration
+# Config
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
-# 16MB max file size
 app.config['MAX_CONTENT_LENGTH'] = int(os.getenv('MAX_CONTENT_LENGTH', 16 * 1024 * 1024))
-app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'uploads')
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+UPLOAD_FOLDER = app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'uploads')
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# Logging (avoid sensitive data)
-LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO').upper()
-logging.basicConfig(level=LOG_LEVEL)
+logging.basicConfig(level=os.getenv('LOG_LEVEL', 'INFO').upper())
 logger = logging.getLogger(__name__)
 
-# Allowed file extensions and MIME types
-ALLOWED_EXTENSIONS = {'csv', 'xls', 'xlsx'}
-ALLOWED_MIME_TYPES = {
-    'text/csv',
-    'application/vnd.ms-excel',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-}
+ALLOWED_EXT = {'.csv', '.xls', '.xlsx', '.json'}
 
-# Session data constraints
-SESSION_MAX_ROWS = int(os.getenv('SESSION_MAX_ROWS', '200000'))  # cap rows stored in session
-SESSION_MAX_COLS = int(os.getenv('SESSION_MAX_COLS', '200'))     # cap columns stored in session
+dataframe: pd.DataFrame | None = None
 
 
 def allowed_file(filename: str) -> bool:
-    """Check if file extension is allowed."""
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    _, ext = os.path.splitext(filename.lower())
+    return ext in ALLOWED_EXT
 
 
-def infer_mime(file_storage) -> Optional[str]:
-    # Prefer browser-provided mimetype but constrain against our allowlist
-    mt = (file_storage.mimetype or '').split(';')[0].strip().lower()
-    return mt if mt in ALLOWED_MIME_TYPES else None
+def load_to_df(path: str) -> pd.DataFrame:
+    ext = os.path.splitext(path.lower())[1]
+    if ext == '.csv':
+        return pd.read_csv(path)
+    if ext in {'.xls', '.xlsx'}:
+        return pd.read_excel(path)
+    if ext == '.json':
+        return pd.read_json(path)
+    raise BadRequest('Unsupported file type')
 
 
-def safe_read_dataframe(file_storage) -> pd.DataFrame:
-    """Read CSV/XLS/XLSX into a DataFrame with robust handling."""
-    filename = file_storage.filename or ''
-    ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
-
-    # Read stream once into BytesIO to allow re-reads
-    file_bytes = file_storage.stream.read()
-    if not file_bytes:
-        raise BadRequest('Uploaded file is empty.')
-
-    # Enforce a soft file size limit in addition to MAX_CONTENT_LENGTH
-    max_soft_size = int(os.getenv('UPLOAD_SOFT_LIMIT', 12 * 1024 * 1024))
-    if len(file_bytes) > max_soft_size:
-        raise BadRequest(f'File too large. Soft limit is {max_soft_size // (1024*1024)}MB.')
-
-    bio = io.BytesIO(file_bytes)
-
-    if ext == 'csv':
-        # Try utf-8 first, then common fallbacks
-        for enc in ('utf-8', 'utf-8-sig', 'latin1'):
-            bio.seek(0)
-            try:
-                return pd.read_csv(bio, encoding=enc)
-            except Exception as e:
-                last_err = e
-        raise BadRequest(f'Failed to parse CSV. Last error: {last_err}')
-
-    if ext in ('xls', 'xlsx'):
-        bio.seek(0)
-        try:
-            # engine auto
-            return pd.read_excel(bio)
-        except ImportError as e:
-            raise BadRequest('Excel support requires openpyxl/xlrd. Please install dependencies.')
-        except ValueError as e:
-            # Often raised by engine/version mismatches
-            raise BadRequest(f'Failed to parse Excel: {e}')
-        except Exception as e:
-            raise BadRequest(f'Unknown Excel parsing error: {e}')
-
-    raise BadRequest('Unsupported file extension.')
+def infer_fields(df: pd.DataFrame) -> List[Dict[str, Any]]:
+    fields: List[Dict[str, Any]] = []
+    for c in df.columns:
+        series = df[c]
+        if pd.api.types.is_numeric_dtype(series):
+            ftype = 'number'
+        elif pd.api.types.is_datetime64_any_dtype(series):
+            ftype = 'date'
+        else:
+            ftype = 'string'
+        fields.append({'name': str(c), 'type': ftype})
+    return fields
 
 
-def clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
-    # Basic sanitation: drop completely empty columns/rows, clip size
-    df = df.dropna(how='all').dropna(axis=1, how='all')
-    # Limit size to prevent session bloat
-    if df.shape[0] > SESSION_MAX_ROWS:
-        df = df.iloc[:SESSION_MAX_ROWS, :]
-    if df.shape[1] > SESSION_MAX_COLS:
-        df = df.iloc[:, :SESSION_MAX_COLS]
-    return df
+@app.route('/')
+def index():
+    return render_template('index.html')
 
 
 @app.errorhandler(RequestEntityTooLarge)
-def handle_large_file(e):
-    return jsonify({
-        'success': False,
-        'error': 'File too large',
-        'detail': f'MAX_CONTENT_LENGTH={app.config["MAX_CONTENT_LENGTH"]} bytes'
-    }), 413
+def handle_file_too_large(e):
+    return jsonify({'error': 'File too large'}), 413
 
 
 @app.route('/upload', methods=['POST'])
 def upload():
+    global dataframe
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file part'}), 400
+    f = request.files['file']
+    if f.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+    if not allowed_file(f.filename):
+        return jsonify({'error': 'File type not allowed'}), 400
     try:
-        if 'file' not in request.files:
-            logger.warning('Upload attempt without file part')
-            return jsonify({'success': False, 'error': 'No file part in request.'}), 400
+        tmp_path = os.path.join(UPLOAD_FOLDER, f.filename)
+        f.save(tmp_path)
+        df = load_to_df(tmp_path)
+        # Normalize: parse dates
+        for col in df.columns:
+            if df[col].dtype == object:
+                try:
+                    parsed = pd.to_datetime(df[col], errors='raise')
+                    # Accept only if many values parsed to datetime
+                    if parsed.notna().mean() > 0.8:
+                        df[col] = parsed
+                except Exception:
+                    pass
+        dataframe = df
+        meta = {'rows': int(len(df)), 'fields': infer_fields(df)}
+        return jsonify({'status': 'ok', 'meta': meta})
+    except Exception as ex:
+        logger.exception('Upload failed')
+        return jsonify({'error': str(ex)}), 500
 
-        file = request.files['file']
-        if file.filename == '':
-            logger.warning('Upload attempt with empty filename')
-            return jsonify({'success': False, 'error': 'No file selected.'}), 400
 
-        if not allowed_file(file.filename):
-            logger.warning('Disallowed extension: %s', file.filename)
-            return jsonify({'success': False, 'error': 'Unsupported file type. Allowed: csv, xls, xlsx'}), 400
+@app.route('/sample')
+def sample():
+    # Generate small FP&A-like sample
+    rng = pd.date_range(end=datetime.today(), periods=12, freq='M')
+    categories = ['North', 'South', 'East', 'West']
+    df = pd.DataFrame({
+        'month': np.repeat(rng, len(categories)),
+        'region': categories * len(rng),
+        'revenue': np.random.randint(80, 200, len(rng) * len(categories)),
+        'cost': np.random.randint(40, 120, len(rng) * len(categories))
+    })
+    buf = io.StringIO()
+    df.to_csv(buf, index=False)
+    buf.seek(0)
+    return send_file(io.BytesIO(buf.getvalue().encode('utf-8')), mimetype='text/csv', as_attachment=True, download_name='sample.csv')
 
-        # MIME type validation (advisory)
-        mime = infer_mime(file)
-        if mime is None:
-            logger.info('Unrecognized MIME for %s; proceeding by extension only', file.filename)
 
-        # Secure filename for any optional persistence
-        filename = secure_filename(file.filename)
+@app.route('/export/csv')
+def export_csv():
+    if dataframe is None:
+        return jsonify({'error': 'No data loaded'}), 400
+    buf = io.StringIO()
+    dataframe.to_csv(buf, index=False)
+    buf.seek(0)
+    return send_file(io.BytesIO(buf.getvalue().encode('utf-8')), mimetype='text/csv', as_attachment=True, download_name='data.csv')
 
-        # Read dataframe robustly
-        df = safe_read_dataframe(file)
-        if df is None or df.empty:
-            return jsonify({'success': False, 'error': 'No data found in file.'}), 400
 
-        df = clean_dataframe(df)
+@app.route('/meta')
+def meta():
+    if dataframe is None:
+        return jsonify({'fields': [], 'rows': 0})
+    return jsonify({'fields': infer_fields(dataframe), 'rows': int(len(dataframe))})
 
-        # Validate resulting dataframe
-        if df.empty:
-            return jsonify({'success': False, 'error': 'File contains no usable data after cleaning.'}), 400
 
-        # Store a lightweight representation in session (avoid heavy blobs)
-        preview_rows = int(os.getenv('PREVIEW_ROWS', '200'))
-        sample = df.head(preview_rows)
-        data = {
-            'columns': list(map(str, sample.columns.tolist())),
-            'rows': sample.astype(object).where(pd.notna(sample), None).values.tolist(),
-            'shape': [int(df.shape[0]), int(df.shape[1])]
-        }
-        session['uploaded_preview'] = data
-        session['uploaded_at'] = datetime.utcnow().isoformat()
-        session['uploaded_filename'] = filename
+def build_plotly_config(df: pd.DataFrame, chart_type: str, x: str | None, y: str | None, group: str | None) -> Dict[str, Any]:
+    if df is None or df.empty:
+        return {'data': [], 'layout': {'title': 'No data', 'paper_bgcolor': 'rgba(0,0,0,0)'}}
 
-        logger.info('Upload processed: file=%s shape=%s', filename, df.shape)
+    layout: Dict[str, Any] = {
+        'paper_bgcolor': 'rgba(0,0,0,0)',
+        'plot_bgcolor': 'rgba(0,0,0,0)',
+        'margin': {'t': 40, 'r': 20, 'b': 60, 'l': 60},
+        'legend': {'orientation': 'h'},
+        'xaxis': {'title': x or ''},
+        'yaxis': {'title': y or ''},
+    }
 
-        return jsonify({
-            'success': True,
-            'filename': filename,
-            'mime': mime,
-            'shape': data['shape'],
-            'preview_rows': len(data['rows'])
-        }), 200
+    config = {'responsive': True, 'displaylogo': False, 'modeBarButtonsToRemove': ['toggleSpikelines']}
 
+    traces: List[Dict[str, Any]] = []
+
+    if chart_type in {'line', 'area', 'bar', 'stacked_bar', 'scatter'}:
+        if not x or not y:
+            raise BadRequest('x and y are required for this chart type')
+        dfx = df.copy()
+        if group and group in dfx.columns:
+            for g, d in dfx.groupby(group):
+                trace_type = 'scatter'
+                mode = 'lines' if chart_type in {'line', 'area'} else 'markers'
+                if chart_type in {'bar', 'stacked_bar'}:
+                    t = {'type': 'bar'}
+                else:
+                    t = {'type': 'scatter', 'mode': mode}
+                tr = {**t, 'name': str(g), 'x': d[x].astype(str).tolist(), 'y': d[y].tolist()}
+                if chart_type == 'area':
+                    tr['fill'] = 'tozeroy'
+                traces.append(tr)
+            if chart_type == 'stacked_bar':
+                layout['barmode'] = 'stack'
+        else:
+            if chart_type in {'bar', 'stacked_bar'}:
+                traces.append({'type': 'bar', 'name': y, 'x': dfx[x].astype(str).tolist(), 'y': dfx[y].tolist()})
+            else:
+                mode = 'lines' if chart_type in {'line', 'area'} else 'markers'
+                tr = {'type': 'scatter', 'mode': mode, 'name': y, 'x': dfx[x].astype(str).tolist(), 'y': dfx[y].tolist()}
+                if chart_type == 'area':
+                    tr['fill'] = 'tozeroy'
+                traces.append(tr)
+
+    elif chart_type == 'pie':
+        if not x or not y:
+            raise BadRequest('x and y required for pie')
+        agg = df.groupby(x, dropna=False)[y].sum().reset_index()
+        traces.append({'type': 'pie', 'labels': agg[x].astype(str).tolist(), 'values': agg[y].tolist(), 'hole': 0.3})
+
+    elif chart_type == 'heatmap':
+        # For heatmap, require x and group as axes and use y as value
+        if not x or not group or not y:
+            raise BadRequest('x, y and group required for heatmap (x axis = x, y axis = group, cell = y)')
+        piv = pd.pivot_table(df, values=y, index=group, columns=x, aggfunc='sum', fill_value=0)
+        traces.append({'type': 'heatmap', 'z': piv.values.tolist(), 'x': piv.columns.astype(str).tolist(), 'y': piv.index.astype(str).tolist(), 'colorscale': 'Viridis'})
+        layout['xaxis'] = {'title': x}
+        layout['yaxis'] = {'title': group}
+
+    else:
+        raise BadRequest('Unsupported chart type')
+
+    return {'data': traces, 'layout': layout, 'config': config}
+
+
+@app.route('/chart', methods=['POST'])
+def chart():
+    if dataframe is None:
+        return jsonify({'error': 'No data loaded'}), 400
+    try:
+        payload = request.get_json(force=True)
+        chart_type = payload.get('chart_type', 'line')
+        x = payload.get('x')
+        y = payload.get('y')
+        group = payload.get('group')
+        cfg = build_plotly_config(dataframe, chart_type, x, y, group)
+        return jsonify(cfg)
     except BadRequest as e:
-        # Raised when we deliberately reject the input
-        logger.warning('BadRequest on upload: %s', e)
-        return jsonify({'success': False, 'error': str(e)}), 400
-    except RequestEntityTooLarge as e:
-        logger.warning('RequestEntityTooLarge: %s', e)
-        return jsonify({'success': False, 'error': 'File too large.'}), 413
-    except Exception as e:
-        # Catch-all with debug correlation id
-        corr = datetime.utcnow().strftime('%Y%m%d%H%M%S%f')
-        logger.exception('Unhandled error in /upload corr=%s', corr)
-        return jsonify({
-            'success': False,
-            'error': 'Internal server error while processing file.',
-            'correlation_id': corr
-        }), 500
-
-
-# Existing endpoints below (kept unchanged where possible)
-# ... other routes ...
-
-# Static uploads (optional, if front-end needs to download back)
-@app.route('/uploads/<path:filename>')
-def get_upload(filename: str):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename, as_attachment=True)
+        return jsonify({'error': str(e)}), 400
+    except Exception as ex:
+        logger.exception('Chart build failed')
+        return jsonify({'error': str(ex)}), 500
 
 
 if __name__ == '__main__':
-    port = int(os.getenv('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=os.getenv('FLASK_ENV') == 'development')
+    port = int(os.getenv('PORT', '8000'))
+    app.run(host='0.0.0.0', port=port)
