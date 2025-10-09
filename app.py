@@ -1,12 +1,15 @@
-from flask import Flask, render_template, jsonify, request, session
 import os
-from datetime import datetime, timedelta
-import requests
-import pandas as pd
-import numpy as np
 import io
 import json
+from datetime import datetime, timedelta
+from typing import List, Dict, Any, Optional
+
+import numpy as np
+import pandas as pd
+import requests
+from flask import Flask, render_template, jsonify, request, session, send_from_directory
 from werkzeug.utils import secure_filename
+
 from monitor import MetricMonitor
 
 app = Flask(__name__)
@@ -15,338 +18,272 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'uploads')
-
-# Create upload folder if it doesn't exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# API Keys
-NEWS_API_KEY = os.getenv('NEWS_API_KEY', '')
+# API Keys / URLs (never log these)
 OLLAMA_API_URL = os.getenv('OLLAMA_API_URL', 'http://localhost:11434/api/generate')
 PERPLEXITY_API_KEY = os.getenv('PERPLEXITY_API_KEY', '')
 
 # Allowed file extensions
 ALLOWED_EXTENSIONS = {'csv', 'xls', 'xlsx'}
 
-def allowed_file(filename):
-    """Check if file extension is allowed"""
+
+def allowed_file(filename: str) -> bool:
+    """Check if file extension is allowed."""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def clean_dataframe(df):
-    """Clean and preprocess dataframe"""
-    # Remove completely empty rows and columns
+
+def clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    """Clean and preprocess dataframe for analysis/visualization."""
+    # Remove empty rows/cols
     df = df.dropna(how='all', axis=0)
     df = df.dropna(how='all', axis=1)
-    
-    # Strip whitespace from string columns
+
+    # Normalize column names
+    df.columns = [str(c).strip() for c in df.columns]
+
+    # Strip strings
     for col in df.select_dtypes(include=['object']).columns:
-        df[col] = df[col].str.strip() if df[col].dtype == 'object' else df[col]
-    
-    # Convert string representations of numbers to numeric
+        try:
+            df[col] = df[col].astype(str).str.strip()
+        except Exception:
+            pass
+
+    # Convert numeric-like strings
     for col in df.columns:
         try:
             df[col] = pd.to_numeric(df[col], errors='ignore')
-        except:
+        except Exception:
             pass
-    
-    # Try to parse date columns
+
+    # Parse dates heuristically
     for col in df.columns:
-        if 'date' in col.lower() or 'time' in col.lower():
+        if df[col].dtype == 'object':
             try:
-                df[col] = pd.to_datetime(df[col], errors='ignore')
-            except:
-                pass
-    
+                parsed = pd.to_datetime(df[col], errors='raise', infer_datetime_format=True)
+                # consider date if at least half are valid
+                mask_valid = ~parsed.isna()
+                if mask_valid.mean() >= 0.5:
+                    df[col] = parsed
+            except Exception:
+                continue
+
     return df
 
-def generate_data_summary(df):
-    """Generate summary statistics for the dataframe"""
-    summary = {
-        'shape': df.shape,
-        'columns': list(df.columns),
-        'dtypes': df.dtypes.astype(str).to_dict(),
-        'missing_values': df.isnull().sum().to_dict(),
-        'numeric_columns': list(df.select_dtypes(include=[np.number]).columns),
-        'categorical_columns': list(df.select_dtypes(include=['object']).columns),
-    }
-    
-    # Add basic statistics for numeric columns
-    if summary['numeric_columns']:
-        summary['statistics'] = df[summary['numeric_columns']].describe().to_dict()
-    
-    return summary
 
-async def analyze_with_llm(data_summary, user_query="Analyze this financial data"):
-    """Async call to LLM for data analysis"""
-    try:
-        # Try Ollama first (local open-source LLM)
-        prompt = f"""You are a financial data analyst. Analyze the following data summary and provide insights:
-        
-Data Summary:
-{json.dumps(data_summary, indent=2)}
+def read_any_table(file_storage) -> pd.DataFrame:
+    """Read CSV or Excel into DataFrame safely."""
+    filename = secure_filename(file_storage.filename)
+    ext = filename.rsplit('.', 1)[1].lower()
 
-User Query: {user_query}
+    contents = file_storage.read()
+    # rewind buffer for future reads if needed
+    buf = io.BytesIO(contents)
 
-Provide actionable insights, trends, and recommendations."""
-        
-        response = requests.post(
-            OLLAMA_API_URL,
-            json={
-                "model": "llama2",  # Can be changed to other models
-                "prompt": prompt,
-                "stream": False
-            },
-            timeout=30
-        )
-        
-        if response.status_code == 200:
-            return response.json().get('response', 'No analysis generated')
-        
-        # Fallback to Perplexity API if available
-        if PERPLEXITY_API_KEY:
-            headers = {
-                'Authorization': f'Bearer {PERPLEXITY_API_KEY}',
-                'Content-Type': 'application/json'
-            }
-            response = requests.post(
-                'https://api.perplexity.ai/chat/completions',
-                headers=headers,
-                json={
-                    "model": "llama-3.1-sonar-small-128k-online",
-                    "messages": [{"role": "user", "content": prompt}]
-                },
-                timeout=30
-            )
-            if response.status_code == 200:
-                return response.json()['choices'][0]['message']['content']
-        
-        return "LLM analysis unavailable. Please configure Ollama or Perplexity API."
-        
-    except Exception as e:
-        return f"Error during LLM analysis: {str(e)}"
+    if ext == 'csv':
+        # try common encodings
+        for enc in ['utf-8', 'utf-8-sig', 'latin-1']:
+            try:
+                buf.seek(0)
+                return pd.read_csv(buf, encoding=enc)
+            except Exception:
+                continue
+        raise ValueError('Failed to read CSV with common encodings.')
+    elif ext in {'xls', 'xlsx'}:
+        buf.seek(0)
+        return pd.read_excel(buf)
+    else:
+        raise ValueError('Unsupported file type')
 
-@app.route('/')
+
+@app.before_request
+def set_secure_session():
+    session.permanent = True
+    app.permanent_session_lifetime = timedelta(hours=12)
+
+
+@app.route('/', methods=['GET'])
 def index():
-    """Main dashboard page - PingPong"""
-    return render_template('index.html')
+    return render_template('index.html', app_name='PingPong')
 
-@app.route('/api/fpa-metrics')
-def get_fpa_metrics():
-    """Get FP&A monitoring metrics and insights"""
-    try:
-        # Initialize monitor
-        monitor = MetricMonitor()
-        
-        # Get data for last 30 days
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=30)
-        
-        # Run analysis
-        results = monitor.run_analysis(start_date, end_date)
-        
-        # Convert results to JSON-serializable format
-        serialized_results = {
-            'metrics': results.get('metrics', {}),
-            'insights': results.get('insights', []),
-            'anomalies': results.get('anomalies', []),
-            'timestamp': datetime.now().isoformat()
-        }
-        
-        return jsonify({
-            'success': True,
-            'data': serialized_results
-        })
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+
+@app.route('/health', methods=['GET'])
+def health():
+    return jsonify({
+        'status': 'ok',
+        'timestamp': datetime.utcnow().isoformat() + 'Z',
+        'app': 'PingPong'
+    })
+
 
 @app.route('/upload', methods=['POST'])
-def upload_file():
-    """Handle file upload for Excel/CSV files"""
+def upload():
     try:
-        # Check if file is in request
         if 'file' not in request.files:
-            return jsonify({
-                'success': False,
-                'error': 'No file provided'
-            }), 400
-        
-        file = request.files['file']
-        
-        # Check if file is selected
-        if file.filename == '':
-            return jsonify({
-                'success': False,
-                'error': 'No file selected'
-            }), 400
-        
-        # Check file extension
-        if not allowed_file(file.filename):
-            return jsonify({
-                'success': False,
-                'error': 'Invalid file type. Only CSV, XLS, and XLSX files are allowed.'
-            }), 400
-        
-        # Secure filename
-        filename = secure_filename(file.filename)
-        
-        # Read file into pandas dataframe
-        try:
-            file_ext = filename.rsplit('.', 1)[1].lower()
-            
-            if file_ext == 'csv':
-                df = pd.read_csv(file, encoding='utf-8', encoding_errors='ignore')
-            elif file_ext in ['xls', 'xlsx']:
-                df = pd.read_excel(file, engine='openpyxl' if file_ext == 'xlsx' else 'xlrd')
-            
-            # Clean the dataframe
-            df = clean_dataframe(df)
-            
-            # Generate data summary
-            data_summary = generate_data_summary(df)
-            
-            # Save cleaned data to temporary file
-            temp_filename = f"temp_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{filename}"
-            temp_filepath = os.path.join(app.config['UPLOAD_FOLDER'], temp_filename)
-            df.to_csv(temp_filepath, index=False)
-            
-            # Store file path in session
-            session['current_file'] = temp_filepath
-            session['data_summary'] = data_summary
-            
-            return jsonify({
-                'success': True,
-                'message': 'File uploaded and processed successfully',
-                'filename': filename,
-                'summary': data_summary,
-                'preview': df.head(10).to_dict(orient='records')
-            })
-            
-        except Exception as e:
-            return jsonify({
-                'success': False,
-                'error': f'Error reading file: {str(e)}'
-            }), 500
-            
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': f'Upload error: {str(e)}'
-        }), 500
+            return jsonify({'success': False, 'error': 'No file part'}), 400
+        f = request.files['file']
+        if f.filename == '':
+            return jsonify({'success': False, 'error': 'No selected file'}), 400
+        if not allowed_file(f.filename):
+            return jsonify({'success': False, 'error': 'Unsupported file type'}), 400
 
-@app.route('/api/analyze', methods=['POST'])
-def analyze_data():
-    """Analyze uploaded data with LLM"""
-    try:
-        # Check if data exists in session
-        if 'data_summary' not in session:
-            return jsonify({
-                'success': False,
-                'error': 'No data uploaded. Please upload a file first.'
-            }), 400
-        
-        # Get user query from request
-        data = request.get_json()
-        user_query = data.get('query', 'Analyze this financial data and provide insights')
-        
-        # Get data summary from session
-        data_summary = session['data_summary']
-        
-        # Call LLM for analysis
-        import asyncio
-        analysis = asyncio.run(analyze_with_llm(data_summary, user_query))
-        
+        # Read into DataFrame and clean
+        df = read_any_table(f)
+        df = clean_dataframe(df)
+
+        # Store in session (truncate to avoid huge payloads)
+        preview = df.head(1000)  # cap preview
+        session['data_preview'] = preview.to_json(orient='split', date_format='iso')
+        session['columns'] = list(preview.columns)
+
         return jsonify({
             'success': True,
-            'analysis': analysis,
-            'timestamp': datetime.now().isoformat()
+            'rows': int(preview.shape[0]),
+            'cols': int(preview.shape[1]),
+            'columns': session['columns']
         })
-        
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': f'Analysis error: {str(e)}'
-        }), 500
+        return jsonify({'success': False, 'error': f'Upload error: {str(e)}'}), 500
 
-@app.route('/api/visualize', methods=['POST'])
-def visualize_data():
-    """Generate visualization configurations for uploaded data"""
+
+@app.route('/analyze', methods=['POST'])
+def analyze():
     try:
-        # Check if data exists
-        if 'current_file' not in session:
-            return jsonify({
-                'success': False,
-                'error': 'No data uploaded'
-            }), 400
-        
-        # Load data from temporary file
-        df = pd.read_csv(session['current_file'])
-        
-        # Get request parameters
-        data = request.get_json() or {}
-        chart_type = data.get('chart_type', 'auto')
-        
-        charts = []
-        
-        # Get numeric and categorical columns
+        payload = request.get_json(silent=True) or {}
+        question = str(payload.get('question', 'Provide a concise FP&A analysis of this dataset.'))
+
+        if 'data_preview' not in session:
+            return jsonify({'success': False, 'error': 'No data in session. Upload first.'}), 400
+
+        # Prepare prompt context from data preview
+        df = pd.read_json(session['data_preview'], orient='split')
+        sample_text = df.head(30).to_markdown(index=False)
+        prompt = (
+            "You are a senior FP&A analyst. Analyze the dataset sample below, "
+            "highlight trends, anomalies, and 3-5 suggested visuals with fields. "
+            "Provide concise, bullet recommendations.\n\n"
+            f"User question: {question}\n\nSample (first 30 rows as table):\n{sample_text}"
+        )
+
+        # Prefer local open-source model via Ollama if available
+        analysis = None
+        try:
+            resp = requests.post(
+                OLLAMA_API_URL,
+                json={
+                    'model': payload.get('model', 'llama3.1:8b'),
+                    'prompt': prompt,
+                    'stream': False,
+                },
+                timeout=60,
+            )
+            if resp.ok:
+                data = resp.json()
+                analysis = data.get('response') or data.get('text')
+        except Exception:
+            analysis = None
+
+        # Fallback to Perplexity API if configured
+        if not analysis and PERPLEXITY_API_KEY:
+            try:
+                headers = {"Authorization": f"Bearer {PERPLEXITY_API_KEY}", "Content-Type": "application/json"}
+                px = requests.post(
+                    "https://api.perplexity.ai/chat/completions",
+                    headers=headers,
+                    json={
+                        "model": payload.get('perplexity_model', "sonar-small-online"),
+                        "messages": [
+                            {"role": "system", "content": "You are a helpful FP&A data analyst."},
+                            {"role": "user", "content": prompt},
+                        ],
+                        "temperature": 0.2,
+                        "stream": False,
+                    },
+                    timeout=60,
+                )
+                if px.ok:
+                    j = px.json()
+                    choices = j.get('choices') or []
+                    if choices:
+                        analysis = choices[0].get('message', {}).get('content')
+            except Exception:
+                analysis = None
+
+        if not analysis:
+            analysis = "No LLM available. Please configure OLLAMA_API_URL or PERPLEXITY_API_KEY."
+
+        return jsonify({'success': True, 'analysis': analysis})
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Analyze error: {str(e)}'}), 500
+
+
+@app.route('/visualize', methods=['POST'])
+def visualize():
+    try:
+        if 'data_preview' not in session:
+            return jsonify({'success': False, 'error': 'No data in session. Upload first.'}), 400
+
+        params = request.get_json(silent=True) or {}
+        chart_type = params.get('chart', 'auto')
+
+        df = pd.read_json(session['data_preview'], orient='split')
+
         numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-        categorical_cols = df.select_dtypes(include=['object']).columns.tolist()
-        date_cols = [col for col in df.columns if 'date' in col.lower() or 'time' in col.lower()]
-        
-        # Generate visualizations based on data structure
-        if chart_type == 'auto' or chart_type == 'line':
-            # Time series chart if date column exists
+        date_cols = df.select_dtypes(include=['datetime64[ns]', 'datetime64[ns, UTC]']).columns.tolist()
+        categorical_cols = [c for c in df.columns if c not in numeric_cols + date_cols]
+
+        charts: List[Dict[str, Any]] = []
+
+        if chart_type in ('auto', 'line'):
             if date_cols and numeric_cols:
-                for num_col in numeric_cols[:3]:  # Limit to first 3
+                for num_col in numeric_cols[:3]:  # up to 3 lines
                     charts.append({
                         'type': 'line',
                         'title': f'{num_col} Over Time',
                         'x_data': df[date_cols[0]].astype(str).tolist(),
                         'y_data': df[num_col].tolist(),
                         'x_label': date_cols[0],
-                        'y_label': num_col
+                        'y_label': num_col,
                     })
-        
-        if chart_type == 'auto' or chart_type == 'bar':
-            # Bar chart for categorical data
+
+        if chart_type in ('auto', 'bar'):
             if categorical_cols and numeric_cols:
                 cat_col = categorical_cols[0]
                 num_col = numeric_cols[0]
                 grouped = df.groupby(cat_col)[num_col].sum().reset_index()
-                
                 charts.append({
                     'type': 'bar',
                     'title': f'{num_col} by {cat_col}',
                     'x_data': grouped[cat_col].tolist(),
                     'y_data': grouped[num_col].tolist(),
                     'x_label': cat_col,
-                    'y_label': num_col
+                    'y_label': num_col,
                 })
-        
-        if chart_type == 'auto' or chart_type == 'pie':
-            # Pie chart for categorical distribution
+
+        if chart_type in ('auto', 'pie'):
             if categorical_cols:
                 cat_col = categorical_cols[0]
                 value_counts = df[cat_col].value_counts().head(10)
-                
                 charts.append({
                     'type': 'pie',
                     'title': f'Distribution of {cat_col}',
                     'labels': value_counts.index.tolist(),
-                    'values': value_counts.values.tolist()
+                    'values': value_counts.values.tolist(),
                 })
-        
-        return jsonify({
-            'success': True,
-            'charts': charts
-        })
-        
+
+        if not charts:
+            return jsonify({'success': False, 'error': 'No suitable fields for visualization.'}), 400
+
+        return jsonify({'success': True, 'charts': charts})
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': f'Visualization error: {str(e)}'
-        }), 500
+        return jsonify({'success': False, 'error': f'Visualization error: {str(e)}'}), 500
+
+
+# Static uploads (optional, if front-end needs to download back)
+@app.route('/uploads/<path:filename>')
+def get_upload(filename: str):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename, as_attachment=True)
+
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
