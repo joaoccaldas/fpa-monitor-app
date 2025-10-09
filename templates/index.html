@@ -21,282 +21,143 @@
             margin-bottom: 1.5rem;
             border: none;
         }
-        .metric-card {
-            transition: transform 0.2s;
+        .upload-card {
+            border: 2px dashed #667eea;
+            background: linear-gradient(135deg, rgba(102,126,234,0.05) 0%, rgba(118,75,162,0.05) 100%);
+            transition: all 0.3s;
         }
-        .metric-card:hover {
-            transform: translateY(-5px);
+        .upload-card:hover {
+            border-color: #764ba2;
+            box-shadow: 0 0.5rem 1rem rgba(102,126,234,0.2);
         }
-        .anomaly-high {
-            border-left: 4px solid #dc3545;
+        .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+            width: 100%;
         }
-        .anomaly-medium {
-            border-left: 4px solid #ffc107;
+        .file-input-label {
+            display: inline-block;
+            padding: 0.75rem 1.5rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 0.375rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+            width: 100%;
         }
-        .anomaly-low {
-            border-left: 4px solid #0dcaf0;
-        }
-        .news-item {
-            transition: all 0.2s;
-        }
-        .news-item:hover {
+        .file-input-label:hover {
+            transform: translateY(-2px);
             box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15);
         }
-        .news-img {
-            width: 100%;
-            height: 180px;
-            object-fit: cover;
-        }
-        .loading {
-            display: none;
-            text-align: center;
-            padding: 2rem;
-        }
-        .rate-badge {
-            font-size: 1.2rem;
-            font-weight: 600;
+        .file-input-label i {
+            margin-right: 0.5rem;
         }
     </style>
 </head>
 <body>
+    <!-- Header -->
     <div class="dashboard-header">
         <div class="container">
-            <h1><i class="bi bi-graph-up-arrow"></i> FP&A Monitor Dashboard</h1>
-            <p class="lead mb-0">Real-time Financial Analysis & Nordic Market Intelligence</p>
+            <div class="text-center">
+                <h1 class="display-4"><i class="bi bi-graph-up"></i> FP&A Monitor Dashboard</h1>
+                <p class="lead">Financial Planning & Analysis Data Visualization Platform</p>
+            </div>
         </div>
     </div>
 
+    <!-- Main Content -->
     <div class="container">
-        <!-- FP&A Metrics Section -->
-        <section id="fpa-section" class="mb-5">
-            <h2 class="mb-4"><i class="bi bi-bar-chart-line"></i> FP&A Metrics & Anomalies</h2>
-            <div id="fpa-loading" class="loading">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Loading...</span>
+        <!-- File Upload Feature Section - Front and Center -->
+        <div class="row justify-content-center mb-5">
+            <div class="col-lg-8">
+                <div class="card upload-card">
+                    <div class="card-body p-5">
+                        <div class="text-center mb-4">
+                            <i class="bi bi-cloud-upload" style="font-size: 3rem; color: #667eea;"></i>
+                            <h2 class="mt-3">Upload Your Data</h2>
+                            <p class="text-muted">Upload Excel or CSV to visualize your FP&A data instantly.</p>
+                        </div>
+                        
+                        <form id="uploadForm" enctype="multipart/form-data">
+                            <div class="mb-4">
+                                <div class="file-input-wrapper">
+                                    <input type="file" 
+                                           id="fileInput" 
+                                           name="dataFile" 
+                                           accept=".csv,.xls,.xlsx" 
+                                           class="d-none" 
+                                           required>
+                                    <label for="fileInput" class="file-input-label">
+                                        <i class="bi bi-file-earmark-spreadsheet"></i>
+                                        Choose Excel or CSV File
+                                    </label>
+                                </div>
+                                <div id="fileName" class="mt-2 text-center text-muted small"></div>
+                            </div>
+                            
+                            <div class="alert alert-info" role="alert">
+                                <i class="bi bi-info-circle"></i>
+                                <strong>Supported formats:</strong> CSV, XLS, XLSX (structured and non-structured data)
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary btn-lg w-100">
+                                <i class="bi bi-upload"></i> Upload and Visualize
+                            </button>
+                        </form>
+                    </div>
                 </div>
-                <p>Loading FP&A data...</p>
             </div>
-            <div id="fpa-content">
-                <div class="row" id="anomalies-container"></div>
-                <div class="row" id="recommendations-container"></div>
-            </div>
-        </section>
-
-        <!-- Exchange Rates Section -->
-        <section id="exchange-rates-section" class="mb-5">
-            <h2 class="mb-4"><i class="bi bi-currency-exchange"></i> Nordic Exchange Rates</h2>
-            <div id="rates-loading" class="loading">
-                <div class="spinner-border text-success" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                </div>
-                <p>Loading exchange rates...</p>
-            </div>
-            <div id="rates-content" class="row"></div>
-        </section>
-
-        <!-- News Section -->
-        <section id="news-section" class="mb-5">
-            <h2 class="mb-4"><i class="bi bi-newspaper"></i> Nordic Economic News</h2>
-            <div id="news-loading" class="loading">
-                <div class="spinner-border text-info" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                </div>
-                <p>Loading news...</p>
-            </div>
-            <div id="news-content" class="row"></div>
-        </section>
-    </div>
-
-    <footer class="bg-dark text-white text-center py-4 mt-5">
-        <div class="container">
-            <p class="mb-0">&copy; 2025 FP&A Monitor Dashboard | Powered by Flask & Bootstrap</p>
         </div>
-    </footer>
+
+        <!-- Features Section -->
+        <div class="row mb-5">
+            <div class="col-md-4">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <i class="bi bi-file-earmark-check" style="font-size: 2.5rem; color: #667eea;"></i>
+                        <h5 class="card-title mt-3">Data Cleaning</h5>
+                        <p class="card-text">Automatically clean and prepare your data for analysis</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <i class="bi bi-diagram-3" style="font-size: 2.5rem; color: #667eea;"></i>
+                        <h5 class="card-title mt-3">Smart Parsing</h5>
+                        <p class="card-text">Intelligently parse structured and non-structured data</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <i class="bi bi-bar-chart-line" style="font-size: 2.5rem; color: #667eea;"></i>
+                        <h5 class="card-title mt-3">Data Visualization</h5>
+                        <p class="card-text">Transform your data into beautiful, interactive charts</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Load FP&A Metrics
-        async function loadFPAMetrics() {
-            const loading = document.getElementById('fpa-loading');
-            const content = document.getElementById('fpa-content');
-            const anomaliesContainer = document.getElementById('anomalies-container');
-            const recommendationsContainer = document.getElementById('recommendations-container');
-            
-            loading.style.display = 'block';
-            
-            try {
-                const response = await fetch('/api/fpa-metrics');
-                const data = await response.json();
-                
-                if (data.success && data.data) {
-                    // Display anomalies
-                    if (data.data.anomalies && data.data.anomalies.length > 0) {
-                        anomaliesContainer.innerHTML = '<div class="col-12"><h4 class="mb-3">Detected Anomalies</h4></div>';
-                        data.data.anomalies.forEach(anomaly => {
-                            const severityClass = anomaly.severity === 'HIGH' ? 'anomaly-high' : 
-                                                 anomaly.severity === 'MEDIUM' ? 'anomaly-medium' : 'anomaly-low';
-                            const severityBadge = anomaly.severity === 'HIGH' ? 'danger' : 
-                                                 anomaly.severity === 'MEDIUM' ? 'warning' : 'info';
-                            
-                            const card = `
-                                <div class="col-md-6 col-lg-4">
-                                    <div class="card metric-card ${severityClass}">
-                                        <div class="card-body">
-                                            <h5 class="card-title">${anomaly.metric.replace('_', ' ').toUpperCase()}</h5>
-                                            <p class="card-text">
-                                                <strong>Value:</strong> ${anomaly.value.toFixed(2)}<br>
-                                                <strong>Z-Score:</strong> ${anomaly.z_score.toFixed(2)}<br>
-                                                <strong>Date:</strong> ${anomaly.date}
-                                            </p>
-                                            <span class="badge bg-${severityBadge}">${anomaly.severity}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            `;
-                            anomaliesContainer.innerHTML += card;
-                        });
-                    }
-                    
-                    // Display recommendations
-                    if (data.data.recommendations && data.data.recommendations.length > 0) {
-                        recommendationsContainer.innerHTML = '<div class="col-12"><h4 class="mb-3 mt-4">Recommendations</h4></div>';
-                        const recCard = `
-                            <div class="col-12">
-                                <div class="card">
-                                    <div class="card-body">
-                                        <ul class="list-group list-group-flush">
-                                            ${data.data.recommendations.map(rec => 
-                                                `<li class="list-group-item"><i class="bi bi-lightbulb text-warning"></i> ${rec}</li>`
-                                            ).join('')}
-                                        </ul>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                        recommendationsContainer.innerHTML += recCard;
-                    }
-                } else {
-                    anomaliesContainer.innerHTML = `<div class="col-12"><div class="alert alert-warning">No FP&A data available</div></div>`;
-                }
-            } catch (error) {
-                anomaliesContainer.innerHTML = `<div class="col-12"><div class="alert alert-danger">Error loading FP&A data: ${error.message}</div></div>`;
-            } finally {
-                loading.style.display = 'none';
-            }
-        }
+        // Display selected filename
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const fileName = e.target.files[0]?.name || '';
+            document.getElementById('fileName').textContent = fileName ? `Selected: ${fileName}` : '';
+        });
 
-        // Load Exchange Rates
-        async function loadExchangeRates() {
-            const loading = document.getElementById('rates-loading');
-            const content = document.getElementById('rates-content');
-            
-            loading.style.display = 'block';
-            
-            try {
-                const response = await fetch('/api/exchange-rates');
-                const data = await response.json();
-                
-                if (data.success && data.rates) {
-                    content.innerHTML = '';
-                    Object.entries(data.rates).forEach(([code, info]) => {
-                        const card = `
-                            <div class="col-md-6 col-lg-3">
-                                <div class="card text-center metric-card">
-                                    <div class="card-body">
-                                        <h5 class="card-title">${code}</h5>
-                                        <p class="text-muted small">${info.name}</p>
-                                        <p class="rate-badge text-success">${typeof info.rate === 'number' ? info.rate.toFixed(4) : info.rate}</p>
-                                        <p class="text-muted small">per EUR</p>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                        content.innerHTML += card;
-                    });
-                    content.innerHTML += `<div class="col-12 mt-2"><p class="text-muted small">Last updated: ${data.date || 'N/A'}</p></div>`;
-                } else {
-                    content.innerHTML = `<div class="col-12"><div class="alert alert-warning">Unable to load exchange rates</div></div>`;
-                }
-            } catch (error) {
-                content.innerHTML = `<div class="col-12"><div class="alert alert-danger">Error loading exchange rates: ${error.message}</div></div>`;
-            } finally {
-                loading.style.display = 'none';
+        // Handle form submission
+        document.getElementById('uploadForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const fileInput = document.getElementById('fileInput');
+            if (fileInput.files.length > 0) {
+                // TODO: Implement file upload and processing logic
+                alert('File upload functionality will be implemented in the backend.');
             }
-        }
-
-        // Load News
-        async function loadNews() {
-            const loading = document.getElementById('news-loading');
-            const content = document.getElementById('news-content');
-            
-            loading.style.display = 'block';
-            
-            try {
-                const response = await fetch('/api/news');
-                const data = await response.json();
-                
-                if (data.success && data.articles && data.articles.length > 0) {
-                    content.innerHTML = '';
-                    data.articles.forEach(article => {
-                        const publishedDate = new Date(article.publishedAt).toLocaleDateString('en-US', {
-                            year: 'numeric',
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                        });
-                        
-                        const card = `
-                            <div class="col-md-6 col-lg-4">
-                                <div class="card news-item h-100">
-                                    <img src="${article.urlToImage || 'https://via.placeholder.com/300x180?text=News'}" 
-                                         class="card-img-top news-img" 
-                                         alt="${article.title}"
-                                         onerror="this.src='https://via.placeholder.com/300x180?text=No+Image'">
-                                    <div class="card-body d-flex flex-column">
-                                        <h5 class="card-title">${article.title}</h5>
-                                        <p class="card-text text-muted small flex-grow-1">${article.description || 'No description available'}</p>
-                                        <div>
-                                            <p class="text-muted small mb-2">
-                                                <i class="bi bi-newspaper"></i> ${article.source?.name || 'Unknown Source'}<br>
-                                                <i class="bi bi-calendar"></i> ${publishedDate}
-                                            </p>
-                                            <a href="${article.url}" target="_blank" class="btn btn-primary btn-sm">
-                                                Read Full Article <i class="bi bi-box-arrow-up-right"></i>
-                                            </a>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                        content.innerHTML += card;
-                    });
-                    
-                    if (data.note) {
-                        content.innerHTML += `<div class="col-12 mt-3"><div class="alert alert-info"><i class="bi bi-info-circle"></i> ${data.note}</div></div>`;
-                    }
-                } else {
-                    content.innerHTML = `<div class="col-12"><div class="alert alert-warning">No news articles available</div></div>`;
-                }
-            } catch (error) {
-                content.innerHTML = `<div class="col-12"><div class="alert alert-danger">Error loading news: ${error.message}</div></div>`;
-            } finally {
-                loading.style.display = 'none';
-            }
-        }
-
-        // Initialize dashboard
-        document.addEventListener('DOMContentLoaded', () => {
-            loadFPAMetrics();
-            loadExchangeRates();
-            loadNews();
-            
-            // Refresh data every 5 minutes
-            setInterval(() => {
-                loadFPAMetrics();
-                loadExchangeRates();
-                loadNews();
-            }, 300000);
         });
     </script>
 </body>
