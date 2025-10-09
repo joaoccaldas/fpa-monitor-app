@@ -19,6 +19,16 @@
     @media (min-width: 992px) { .chart-grid { grid-template-columns: 1fr 1fr; } }
     .spinner { display:none; }
     .empty-state { color:#6c757d; }
+
+    /* Chatbot styles */
+    .chatbot-toggle { position: fixed; right: 20px; bottom: 20px; z-index: 1050; }
+    .chatbot-panel { position: fixed; right: 20px; bottom: 90px; width: 360px; max-height: 520px; z-index: 1050; display: none; }
+    .chatbot-card { border: 1px solid #e9ecef; border-radius: .75rem; box-shadow: 0 .5rem 1rem rgba(0,0,0,.15); }
+    .chatbot-header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; }
+    .chatbot-messages { height: 320px; overflow-y: auto; background: #fafbff; padding: .75rem; }
+    .msg { padding: .5rem .75rem; border-radius: .5rem; margin-bottom: .5rem; max-width: 85%; }
+    .msg-user { background: #e7f1ff; color: #0b5ed7; margin-left: auto; }
+    .msg-bot { background: #fff; border: 1px solid #edf2f7; color: #334155; }
   </style>
 </head>
 <body>
@@ -89,8 +99,8 @@
                   <button id="btnReset" class="btn btn-outline-secondary"><i class="bi bi-arrow-counterclockwise"></i> Reset</button>
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                  <input id="toggleDrilldown" class="form-check-input" type="checkbox" />
-                  <label class="form-check-label" for="toggleDrilldown">Enable drilldown</label>
+                  <input id="toggleDrilldown" type="checkbox" class="form-check-input" />
+                  <label for="toggleDrilldown" class="form-check-label">Enable drilldown</label>
                 </div>
               </div>
             </div>
@@ -100,7 +110,7 @@
 
       <!-- Charts grid -->
       <div class="col-12">
-        <div class="chart-grid" id="chartGrid">
+        <div id="chartGrid" class="chart-grid">
           <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
               <span class="fw-semibold">Panel 1</span>
@@ -111,8 +121,8 @@
               </div>
             </div>
             <div class="card-body">
-              <div id="chart-1" style="height:420px" class="w-100"></div>
-              <div class="text-center empty-state" id="empty-1">Build a chart to get started.</div>
+              <div id="chart-1" class="w-100" style="height:420px"></div>
+              <div id="empty-1" class="text-center empty-state">Build a chart to get started.</div>
             </div>
           </div>
         </div>
@@ -130,24 +140,44 @@
           </div>
         </div>
       </div>
-
     </div>
   </main>
 
+  <!-- Chatbot UI -->
+  <button id="chatbotToggle" class="btn btn-primary rounded-circle p-3 chatbot-toggle" title="Chat with PingPong">
+    <i class="bi bi-chat-dots" style="font-size:1.25rem"></i>
+  </button>
+  <div id="chatbotPanel" class="chatbot-panel">
+    <div class="card chatbot-card">
+      <div class="card-header d-flex justify-content-between align-items-center chatbot-header">
+        <span class="fw-semibold">PingPong AI</span>
+        <div class="d-flex gap-2">
+          <button id="chatClear" class="btn btn-sm btn-light text-primary">Clear</button>
+          <button id="chatClose" class="btn btn-sm btn-light">✕</button>
+        </div>
+      </div>
+      <div id="chatMessages" class="chatbot-messages"></div>
+      <div class="card-footer">
+        <div class="input-group">
+          <input id="chatInput" type="text" class="form-control" placeholder="Ask anything..." />
+          <button id="chatSend" class="btn btn-primary"><i class="bi bi-send"></i></button>
+        </div>
+        <div class="small text-muted mt-1">Powered by configurable LLM backend</div>
+      </div>
+    </div>
+  </div>
+
   <script>
     const apiBase = '';
-
     async function fetchJson(url, options={}) {
       const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...options });
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
       return res.json();
     }
-
     function setDebug(data) {
       const txt = (typeof data === 'string') ? data : JSON.stringify(data, null, 2);
       document.getElementById('debugOut').textContent = txt;
     }
-
     function populateFields(meta) {
       const fields = (meta && meta.fields) ? meta.fields : [];
       const numeric = fields.filter(f => ['int','float','number'].includes((f.type||'').toLowerCase()));
@@ -160,7 +190,6 @@
       setOpts(yField, numeric.length?numeric:fields);
       groupField.innerHTML = '<option value="">None</option>' + fields.map(f => `<option value="${f.name}">${f.name}</option>`).join('');
     }
-
     async function refreshMeta() {
       try {
         const meta = await fetchJson(`${apiBase}/meta`);
@@ -168,9 +197,7 @@
         setDebug({meta});
       } catch(e) { setDebug({error: e.message}); }
     }
-
     function buildPanelId(idx) { return `chart-${idx}`; }
-
     async function buildChart(targetId) {
       const chartType = document.getElementById('chartType').value;
       const x = document.getElementById('xField').value;
@@ -189,29 +216,22 @@
         setDebug({error: e.message});
       }
     }
-
-    function exportCSV() {
-      window.location.href = `${apiBase}/export/csv`;
-    }
-
+    function exportCSV() { window.location.href = `${apiBase}/export/csv`; }
     function exportPNG(targetId) {
       Plotly.toImage(targetId, {format: 'png', height: 600, width: 1000}).then(url => {
         const a = document.createElement('a'); a.href = url; a.download = `${targetId}.png`; a.click();
       });
     }
-
     function exportSVG(targetId) {
       Plotly.toImage(targetId, {format: 'svg', height: 600, width: 1000}).then(url => {
         const a = document.createElement('a'); a.href = url; a.download = `${targetId}.svg`; a.click();
       });
     }
-
     function wirePanelActions(cardEl, targetId) {
       cardEl.querySelector('[data-action="download-png"]').addEventListener('click', () => exportPNG(targetId));
       cardEl.querySelector('[data-action="download-svg"]').addEventListener('click', () => exportSVG(targetId));
       cardEl.querySelector('[data-action="remove"]').addEventListener('click', () => cardEl.remove());
     }
-
     function addPanel() {
       const grid = document.getElementById('chartGrid');
       const idx = grid.querySelectorAll('.card').length + 1;
@@ -235,7 +255,6 @@
       wirePanelActions(card, targetId);
       return targetId;
     }
-
     async function uploadFile(file) {
       const spinner = document.getElementById('uploadSpinner');
       const status = document.getElementById('uploadStatus');
@@ -244,50 +263,3 @@
         const form = new FormData();
         form.append('file', file);
         const res = await fetch(`${apiBase}/upload`, { method: 'POST', body: form });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.error || `${res.status}`);
-        status.textContent = ' Uploaded';
-        await refreshMeta();
-      } catch(e) {
-        status.textContent = ` Error: ${e.message}`;
-        setDebug({upload_error: e.message});
-      } finally {
-        spinner.style.display = 'none';
-      }
-    }
-
-    document.getElementById('btnUpload').addEventListener('click', () => {
-      const f = document.getElementById('fileInput').files[0];
-      if (!f) { setDebug('Select a file to upload.'); return; }
-      uploadFile(f);
-    });
-    document.getElementById('btnDownloadSample').addEventListener('click', () => window.location.href = `${apiBase}/sample`);
-    document.getElementById('btnExportCSV').addEventListener('click', exportCSV);
-
-    document.getElementById('btnRefresh').addEventListener('click', async () => {
-      const panels = document.querySelectorAll('#chartGrid .card');
-      if (!panels.length) addPanel();
-      const first = panels[0].querySelector('[id^="chart-"]').id;
-      await buildChart(first);
-    });
-    document.getElementById('btnAddPanel').addEventListener('click', async () => {
-      const target = addPanel();
-      await buildChart(target);
-    });
-    document.getElementById('btnReset').addEventListener('click', async () => {
-      document.getElementById('chartGrid').innerHTML = '';
-      addPanel();
-    });
-
-    document.getElementById('btnCopyDebug').addEventListener('click', async () => {
-      const t = document.getElementById('debugOut').textContent; await navigator.clipboard.writeText(t);
-    });
-
-    // Panel 1 actions
-    wirePanelActions(document.querySelector('#chartGrid .card'), 'chart-1');
-
-    // Load metadata on startup
-    refreshMeta();
-  </script>
-</body>
-</html>
