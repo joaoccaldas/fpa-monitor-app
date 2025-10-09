@@ -1,164 +1,188 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FP&A Monitor Dashboard</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
-    <style>
-        body {
-            background-color: #f8f9fa;
-        }
-        .dashboard-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 2rem 0;
-            margin-bottom: 2rem;
-        }
-        .card {
-            box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
-            margin-bottom: 1.5rem;
-            border: none;
-        }
-        .upload-card {
-            border: 2px dashed #667eea;
-            background: linear-gradient(135deg, rgba(102,126,234,0.05) 0%, rgba(118,75,162,0.05) 100%);
-            transition: all 0.3s;
-        }
-        .upload-card:hover {
-            border-color: #764ba2;
-            box-shadow: 0 0.5rem 1rem rgba(102,126,234,0.2);
-        }
-        .file-input-wrapper {
-            position: relative;
-            display: inline-block;
-            width: 100%;
-        }
-        .file-input-label {
-            display: inline-block;
-            padding: 0.75rem 1.5rem;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border-radius: 0.375rem;
-            cursor: pointer;
-            transition: all 0.3s;
-            text-align: center;
-            width: 100%;
-        }
-        .file-input-label:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15);
-        }
-        .file-input-label i {
-            margin-right: 0.5rem;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PingPong — FP&A Monitor Dashboard</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" />
+  <style>
+    body { background-color: #f8f9fa; }
+    .dashboard-header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white; padding: 2rem 0; margin-bottom: 2rem;
+    }
+    .card { box-shadow: 0 .125rem .25rem rgba(0,0,0,.075); border: none; }
+    .upload-card { border: 2px dashed #667eea; background: linear-gradient(135deg, rgba(102,126,234,.05) 0%, rgba(118,75,162,.05) 100%); transition: all .3s; }
+    .upload-card:hover { border-color: #764ba2; box-shadow: 0 .5rem 1rem rgba(102,126,234,.2); }
+    pre { white-space: pre-wrap; }
+  </style>
 </head>
 <body>
-    <!-- Header -->
-    <div class="dashboard-header">
-        <div class="container">
-            <div class="text-center">
-                <h1 class="display-4"><i class="bi bi-graph-up"></i> FP&A Monitor Dashboard</h1>
-                <p class="lead">Financial Planning & Analysis Data Visualization Platform</p>
-            </div>
-        </div>
-    </div>
-
-    <!-- Main Content -->
+  <header class="dashboard-header">
     <div class="container">
-        <!-- File Upload Feature Section - Front and Center -->
-        <div class="row justify-content-center mb-5">
-            <div class="col-lg-8">
-                <div class="card upload-card">
-                    <div class="card-body p-5">
-                        <div class="text-center mb-4">
-                            <i class="bi bi-cloud-upload" style="font-size: 3rem; color: #667eea;"></i>
-                            <h2 class="mt-3">Upload Your Data</h2>
-                            <p class="text-muted">Upload Excel or CSV to visualize your FP&A data instantly.</p>
-                        </div>
-                        
-                        <form id="uploadForm" enctype="multipart/form-data">
-                            <div class="mb-4">
-                                <div class="file-input-wrapper">
-                                    <input type="file" 
-                                           id="fileInput" 
-                                           name="dataFile" 
-                                           accept=".csv,.xls,.xlsx" 
-                                           class="d-none" 
-                                           required>
-                                    <label for="fileInput" class="file-input-label">
-                                        <i class="bi bi-file-earmark-spreadsheet"></i>
-                                        Choose Excel or CSV File
-                                    </label>
-                                </div>
-                                <div id="fileName" class="mt-2 text-center text-muted small"></div>
-                            </div>
-                            
-                            <div class="alert alert-info" role="alert">
-                                <i class="bi bi-info-circle"></i>
-                                <strong>Supported formats:</strong> CSV, XLS, XLSX (structured and non-structured data)
-                            </div>
-                            
-                            <button type="submit" class="btn btn-primary btn-lg w-100">
-                                <i class="bi bi-upload"></i> Upload and Visualize
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Features Section -->
-        <div class="row mb-5">
-            <div class="col-md-4">
-                <div class="card text-center h-100">
-                    <div class="card-body">
-                        <i class="bi bi-file-earmark-check" style="font-size: 2.5rem; color: #667eea;"></i>
-                        <h5 class="card-title mt-3">Data Cleaning</h5>
-                        <p class="card-text">Automatically clean and prepare your data for analysis</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card text-center h-100">
-                    <div class="card-body">
-                        <i class="bi bi-diagram-3" style="font-size: 2.5rem; color: #667eea;"></i>
-                        <h5 class="card-title mt-3">Smart Parsing</h5>
-                        <p class="card-text">Intelligently parse structured and non-structured data</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card text-center h-100">
-                    <div class="card-body">
-                        <i class="bi bi-bar-chart-line" style="font-size: 2.5rem; color: #667eea;"></i>
-                        <h5 class="card-title mt-3">Data Visualization</h5>
-                        <p class="card-text">Transform your data into beautiful, interactive charts</p>
-                    </div>
-                </div>
-            </div>
-        </div>
+      <div class="d-flex justify-content-between align-items-center">
+        <h1 class="h3 m-0">PingPong</h1>
+        <span class="opacity-75">Minimal FP&A dashboard</span>
+      </div>
     </div>
+  </header>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // Display selected filename
-        document.getElementById('fileInput').addEventListener('change', function(e) {
-            const fileName = e.target.files[0]?.name || '';
-            document.getElementById('fileName').textContent = fileName ? `Selected: ${fileName}` : '';
-        });
+  <main class="container mb-5">
+    <div class="row g-4">
+      <!-- Upload -->
+      <div class="col-12">
+        <div class="card upload-card">
+          <div class="card-body">
+            <h2 class="h5 mb-3"><i class="bi bi-cloud-upload"></i> Upload data (CSV/XLS/XLSX)</h2>
+            <form id="upload-form" class="d-flex gap-2" enctype="multipart/form-data">
+              <input class="form-control" type="file" name="file" id="file" accept=".csv,.xls,.xlsx" required />
+              <button class="btn btn-primary" type="submit">Upload</button>
+            </form>
+            <div id="upload-status" class="mt-3 small text-muted"></div>
+          </div>
+        </div>
+      </div>
 
-        // Handle form submission
-        document.getElementById('uploadForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const fileInput = document.getElementById('fileInput');
-            if (fileInput.files.length > 0) {
-                // TODO: Implement file upload and processing logic
-                alert('File upload functionality will be implemented in the backend.');
-            }
-        });
-    </script>
+      <!-- Analyze -->
+      <div class="col-lg-6">
+        <div class="card">
+          <div class="card-body">
+            <h2 class="h5 mb-3"><i class="bi bi-robot"></i> Analyze with LLM</h2>
+            <form id="analyze-form" class="d-flex gap-2">
+              <input class="form-control" type="text" id="question" placeholder="Ask a question about your data..." />
+              <button class="btn btn-secondary" type="submit">Analyze</button>
+            </form>
+            <div id="analysis" class="mt-3">
+              <pre class="small" id="analysis-text"></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Visualize -->
+      <div class="col-lg-6">
+        <div class="card">
+          <div class="card-body">
+            <h2 class="h5 mb-3"><i class="bi bi-graph-up-arrow"></i> Visualize</h2>
+            <form id="visualize-form" class="d-flex gap-2 align-items-center">
+              <label class="form-label m-0" for="chart">Chart</label>
+              <select id="chart" class="form-select" style="max-width: 200px;">
+                <option value="auto" selected>Auto</option>
+                <option value="line">Line</option>
+                <option value="bar">Bar</option>
+                <option value="pie">Pie</option>
+              </select>
+              <button class="btn btn-success" type="submit">Generate</button>
+            </form>
+            <div id="charts" class="mt-3"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    async function postJSON(url, body) {
+      const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+      return res.json();
+    }
+
+    // Upload
+    const uploadForm = document.getElementById('upload-form');
+    const uploadStatus = document.getElementById('upload-status');
+    uploadForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      uploadStatus.textContent = 'Uploading...';
+      const formData = new FormData(uploadForm);
+      try {
+        const res = await fetch('/upload', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.success) {
+          uploadStatus.textContent = `Uploaded ${data.rows} rows, ${data.cols} columns.`;
+        } else {
+          uploadStatus.textContent = data.error || 'Upload failed.';
+        }
+      } catch (err) {
+        uploadStatus.textContent = 'Network error during upload.';
+      }
+    });
+
+    // Analyze
+    const analyzeForm = document.getElementById('analyze-form');
+    const analysisText = document.getElementById('analysis-text');
+    analyzeForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      analysisText.textContent = 'Thinking...';
+      const question = document.getElementById('question').value || undefined;
+      try {
+        const data = await postJSON('/analyze', { question });
+        analysisText.textContent = data.success ? (data.analysis || '') : (data.error || 'Analyze failed.');
+      } catch (err) {
+        analysisText.textContent = 'Network error during analysis.';
+      }
+    });
+
+    // Visualize
+    const visualizeForm = document.getElementById('visualize-form');
+    const chartsDiv = document.getElementById('charts');
+
+    function renderCharts(charts) {
+      chartsDiv.innerHTML = '';
+      for (const c of charts) {
+        const card = document.createElement('div');
+        card.className = 'border rounded p-3 mb-3';
+        const title = document.createElement('div');
+        title.className = 'fw-semibold mb-2';
+        title.textContent = c.title || c.type;
+        card.appendChild(title);
+
+        if (c.type === 'line' || c.type === 'bar') {
+          const canvas = document.createElement('canvas');
+          canvas.height = 220;
+          card.appendChild(canvas);
+          chartsDiv.appendChild(card);
+          // Simple Chart.js rendering
+          new Chart(canvas, {
+            type: c.type,
+            data: { labels: c.x_data, datasets: [{ label: c.y_label, data: c.y_data, borderColor: '#667eea', backgroundColor: 'rgba(102,126,234,.35)' }] },
+            options: { responsive: true, maintainAspectRatio: false, scales: { x: { ticks: { autoSkip: true, maxTicksLimit: 8 } } } }
+          });
+          continue;
+        }
+        if (c.type === 'pie') {
+          const canvas = document.createElement('canvas');
+          canvas.height = 220;
+          card.appendChild(canvas);
+          chartsDiv.appendChild(card);
+          new Chart(canvas, {
+            type: 'pie',
+            data: { labels: c.labels, datasets: [{ data: c.values, backgroundColor: ['#667eea','#764ba2','#e67e22','#16a085','#2ecc71','#1abc9c','#d35400','#8e44ad','#2980b9','#c0392b'] }] },
+            options: { responsive: true, maintainAspectRatio: false }
+          });
+          continue;
+        }
+        chartsDiv.appendChild(card);
+      }
+    }
+
+    visualizeForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      chartsDiv.textContent = 'Generating charts...';
+      const chart = document.getElementById('chart').value;
+      try {
+        const data = await postJSON('/visualize', { chart });
+        if (data.success) {
+          renderCharts(data.charts || []);
+        } else {
+          chartsDiv.textContent = data.error || 'Visualization failed.';
+        }
+      } catch (err) {
+        chartsDiv.textContent = 'Network error during visualization.';
+      }
+    });
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </body>
 </html>
