@@ -4,18 +4,21 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PingPong — FP&A Monitor Dashboard</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" />
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
   <style>
     body { background-color: #f8f9fa; }
-    .dashboard-header {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white; padding: 2rem 0; margin-bottom: 2rem;
-    }
+    .dashboard-header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 2rem 0; margin-bottom: 2rem; }
     .card { box-shadow: 0 .125rem .25rem rgba(0,0,0,.075); border: none; }
     .upload-card { border: 2px dashed #667eea; background: linear-gradient(135deg, rgba(102,126,234,.05) 0%, rgba(118,75,162,.05) 100%); transition: all .3s; }
     .upload-card:hover { border-color: #764ba2; box-shadow: 0 .5rem 1rem rgba(102,126,234,.2); }
     pre { white-space: pre-wrap; }
+    .chart-toolbar .btn { margin-right: .5rem; }
+    .chart-grid { display: grid; grid-template-columns: 1fr; gap: 1rem; }
+    @media (min-width: 992px) { .chart-grid { grid-template-columns: 1fr 1fr; } }
+    .spinner { display:none; }
+    .empty-state { color:#6c757d; }
   </style>
 </head>
 <body>
@@ -34,155 +37,257 @@
       <div class="col-12">
         <div class="card upload-card">
           <div class="card-body">
-            <h2 class="h5 mb-3"><i class="bi bi-cloud-upload"></i> Upload data (CSV/XLS/XLSX)</h2>
-            <form id="upload-form" class="d-flex gap-2" enctype="multipart/form-data">
-              <input class="form-control" type="file" name="file" id="file" accept=".csv,.xls,.xlsx" required />
-              <button class="btn btn-primary" type="submit">Upload</button>
-            </form>
-            <div id="upload-status" class="mt-3 small text-muted"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Analyze -->
-      <div class="col-lg-6">
-        <div class="card">
-          <div class="card-body">
-            <h2 class="h5 mb-3"><i class="bi bi-robot"></i> Analyze with LLM</h2>
-            <form id="analyze-form" class="d-flex gap-2">
-              <input class="form-control" type="text" id="question" placeholder="Ask a question about your data..." />
-              <button class="btn btn-secondary" type="submit">Analyze</button>
-            </form>
-            <div id="analysis" class="mt-3">
-              <pre class="small" id="analysis-text"></pre>
+            <div class="d-flex flex-wrap align-items-center gap-2">
+              <label for="fileInput" class="form-label m-0"><i class="bi bi-cloud-arrow-up"></i> Upload data (CSV/XLSX/JSON)</label>
+              <input id="fileInput" type="file" class="form-control" accept=".csv,.xlsx,.xls,.json" />
+              <button id="btnUpload" class="btn btn-primary"><i class="bi bi-upload"></i> Upload</button>
+              <div id="uploadSpinner" class="spinner-border spinner text-primary" role="status" style="width: 1.5rem; height: 1.5rem;"><span class="visually-hidden">Uploading...</span></div>
+              <span id="uploadStatus" class="ms-2 small text-muted"></span>
+              <div class="ms-auto d-flex gap-2">
+                <button id="btnDownloadSample" class="btn btn-outline-secondary btn-sm"><i class="bi bi-file-earmark-arrow-down"></i> Sample</button>
+                <button id="btnExportCSV" class="btn btn-outline-secondary btn-sm"><i class="bi bi-filetype-csv"></i> Export CSV</button>
+                <button id="btnExportPNG" class="btn btn-outline-secondary btn-sm"><i class="bi bi-image"></i> Export PNG</button>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Visualize -->
-      <div class="col-lg-6">
+      <!-- Controls -->
+      <div class="col-12">
         <div class="card">
           <div class="card-body">
-            <h2 class="h5 mb-3"><i class="bi bi-graph-up-arrow"></i> Visualize</h2>
-            <form id="visualize-form" class="d-flex gap-2 align-items-center">
-              <label class="form-label m-0" for="chart">Chart</label>
-              <select id="chart" class="form-select" style="max-width: 200px;">
-                <option value="auto" selected>Auto</option>
-                <option value="line">Line</option>
-                <option value="bar">Bar</option>
-                <option value="pie">Pie</option>
-              </select>
-              <button class="btn btn-success" type="submit">Generate</button>
-            </form>
-            <div id="charts" class="mt-3"></div>
+            <div class="row g-3 align-items-end">
+              <div class="col-md-3">
+                <label class="form-label">Chart type</label>
+                <select id="chartType" class="form-select">
+                  <option value="line">Line</option>
+                  <option value="bar">Bar</option>
+                  <option value="stacked_bar">Stacked Bar</option>
+                  <option value="area">Area</option>
+                  <option value="pie">Pie</option>
+                  <option value="scatter">Scatter</option>
+                  <option value="heatmap">Heatmap</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">X field</label>
+                <select id="xField" class="form-select"></select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Y field</label>
+                <select id="yField" class="form-select"></select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Group by</label>
+                <select id="groupField" class="form-select"><option value="">None</option></select>
+              </div>
+              <div class="col-12 d-flex justify-content-between mt-2">
+                <div class="chart-toolbar">
+                  <button id="btnRefresh" class="btn btn-primary"><i class="bi bi-bar-chart"></i> Build chart</button>
+                  <button id="btnAddPanel" class="btn btn-outline-primary"><i class="bi bi-layout-split"></i> Add panel</button>
+                  <button id="btnReset" class="btn btn-outline-secondary"><i class="bi bi-arrow-counterclockwise"></i> Reset</button>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                  <input id="toggleDrilldown" class="form-check-input" type="checkbox" />
+                  <label class="form-check-label" for="toggleDrilldown">Enable drilldown</label>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
+
+      <!-- Charts grid -->
+      <div class="col-12">
+        <div class="chart-grid" id="chartGrid">
+          <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <span class="fw-semibold">Panel 1</span>
+              <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-secondary" data-action="download-png"><i class="bi bi-image"></i></button>
+                <button class="btn btn-sm btn-outline-secondary" data-action="download-svg"><i class="bi bi-filetype-svg"></i></button>
+                <button class="btn btn-sm btn-outline-danger" data-action="remove"><i class="bi bi-x-lg"></i></button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div id="chart-1" style="height:420px" class="w-100"></div>
+              <div class="text-center empty-state" id="empty-1">Build a chart to get started.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Raw response/debug -->
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <span class="fw-semibold">Debug console</span>
+            <button id="btnCopyDebug" class="btn btn-sm btn-outline-secondary"><i class="bi bi-clipboard"></i> Copy</button>
+          </div>
+          <div class="card-body">
+            <pre id="debugOut" class="small mb-0">Ready.</pre>
+          </div>
+        </div>
+      </div>
+
     </div>
   </main>
 
   <script>
-    async function postJSON(url, body) {
-      const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+    const apiBase = '';
+
+    async function fetchJson(url, options={}) {
+      const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...options });
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
       return res.json();
     }
 
-    // Upload
-    const uploadForm = document.getElementById('upload-form');
-    const uploadStatus = document.getElementById('upload-status');
-    uploadForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      uploadStatus.textContent = 'Uploading...';
-      const formData = new FormData(uploadForm);
+    function setDebug(data) {
+      const txt = (typeof data === 'string') ? data : JSON.stringify(data, null, 2);
+      document.getElementById('debugOut').textContent = txt;
+    }
+
+    function populateFields(meta) {
+      const fields = (meta && meta.fields) ? meta.fields : [];
+      const numeric = fields.filter(f => ['int','float','number'].includes((f.type||'').toLowerCase()));
+      const categorical = fields.filter(f => !numeric.includes(f));
+      const xField = document.getElementById('xField');
+      const yField = document.getElementById('yField');
+      const groupField = document.getElementById('groupField');
+      const setOpts = (el, arr) => { el.innerHTML = arr.map(f => `<option value="${f.name}">${f.name}</option>`).join(''); };
+      setOpts(xField, categorical.length?categorical:fields);
+      setOpts(yField, numeric.length?numeric:fields);
+      groupField.innerHTML = '<option value="">None</option>' + fields.map(f => `<option value="${f.name}">${f.name}</option>`).join('');
+    }
+
+    async function refreshMeta() {
       try {
-        const res = await fetch('/upload', { method: 'POST', body: formData });
-        const data = await res.json();
-        if (data.success) {
-          uploadStatus.textContent = `Uploaded ${data.rows} rows, ${data.cols} columns.`;
-        } else {
-          uploadStatus.textContent = data.error || 'Upload failed.';
-        }
-      } catch (err) {
-        uploadStatus.textContent = 'Network error during upload.';
-      }
-    });
+        const meta = await fetchJson(`${apiBase}/meta`);
+        populateFields(meta);
+        setDebug({meta});
+      } catch(e) { setDebug({error: e.message}); }
+    }
 
-    // Analyze
-    const analyzeForm = document.getElementById('analyze-form');
-    const analysisText = document.getElementById('analysis-text');
-    analyzeForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      analysisText.textContent = 'Thinking...';
-      const question = document.getElementById('question').value || undefined;
+    function buildPanelId(idx) { return `chart-${idx}`; }
+
+    async function buildChart(targetId) {
+      const chartType = document.getElementById('chartType').value;
+      const x = document.getElementById('xField').value;
+      const y = document.getElementById('yField').value;
+      const group = document.getElementById('groupField').value;
       try {
-        const data = await postJSON('/analyze', { question });
-        analysisText.textContent = data.success ? (data.analysis || '') : (data.error || 'Analyze failed.');
-      } catch (err) {
-        analysisText.textContent = 'Network error during analysis.';
-      }
-    });
-
-    // Visualize
-    const visualizeForm = document.getElementById('visualize-form');
-    const chartsDiv = document.getElementById('charts');
-
-    function renderCharts(charts) {
-      chartsDiv.innerHTML = '';
-      for (const c of charts) {
-        const card = document.createElement('div');
-        card.className = 'border rounded p-3 mb-3';
-        const title = document.createElement('div');
-        title.className = 'fw-semibold mb-2';
-        title.textContent = c.title || c.type;
-        card.appendChild(title);
-
-        if (c.type === 'line' || c.type === 'bar') {
-          const canvas = document.createElement('canvas');
-          canvas.height = 220;
-          card.appendChild(canvas);
-          chartsDiv.appendChild(card);
-          // Simple Chart.js rendering
-          new Chart(canvas, {
-            type: c.type,
-            data: { labels: c.x_data, datasets: [{ label: c.y_label, data: c.y_data, borderColor: '#667eea', backgroundColor: 'rgba(102,126,234,.35)' }] },
-            options: { responsive: true, maintainAspectRatio: false, scales: { x: { ticks: { autoSkip: true, maxTicksLimit: 8 } } } }
-          });
-          continue;
-        }
-        if (c.type === 'pie') {
-          const canvas = document.createElement('canvas');
-          canvas.height = 220;
-          card.appendChild(canvas);
-          chartsDiv.appendChild(card);
-          new Chart(canvas, {
-            type: 'pie',
-            data: { labels: c.labels, datasets: [{ data: c.values, backgroundColor: ['#667eea','#764ba2','#e67e22','#16a085','#2ecc71','#1abc9c','#d35400','#8e44ad','#2980b9','#c0392b'] }] },
-            options: { responsive: true, maintainAspectRatio: false }
-          });
-          continue;
-        }
-        chartsDiv.appendChild(card);
+        const payload = { chart_type: chartType, x, y, group, drilldown: document.getElementById('toggleDrilldown').checked };
+        const cfg = await fetchJson(`${apiBase}/chart`, { method: 'POST', body: JSON.stringify(payload) });
+        setDebug(cfg);
+        const layout = cfg.layout || {};
+        layout.uirevision = true; // preserve interactions
+        Plotly.react(targetId, cfg.data || [], layout, cfg.config || {responsive: true, displaylogo: false});
+        const empty = document.getElementById(targetId.replace('chart', 'empty'));
+        if (empty) empty.style.display = 'none';
+      } catch(e) {
+        setDebug({error: e.message});
       }
     }
 
-    visualizeForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      chartsDiv.textContent = 'Generating charts...';
-      const chart = document.getElementById('chart').value;
-      try {
-        const data = await postJSON('/visualize', { chart });
-        if (data.success) {
-          renderCharts(data.charts || []);
-        } else {
-          chartsDiv.textContent = data.error || 'Visualization failed.';
-        }
-      } catch (err) {
-        chartsDiv.textContent = 'Network error during visualization.';
-      }
-    });
-  </script>
+    function exportCSV() {
+      window.location.href = `${apiBase}/export/csv`;
+    }
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    function exportPNG(targetId) {
+      Plotly.toImage(targetId, {format: 'png', height: 600, width: 1000}).then(url => {
+        const a = document.createElement('a'); a.href = url; a.download = `${targetId}.png`; a.click();
+      });
+    }
+
+    function exportSVG(targetId) {
+      Plotly.toImage(targetId, {format: 'svg', height: 600, width: 1000}).then(url => {
+        const a = document.createElement('a'); a.href = url; a.download = `${targetId}.svg`; a.click();
+      });
+    }
+
+    function wirePanelActions(cardEl, targetId) {
+      cardEl.querySelector('[data-action="download-png"]').addEventListener('click', () => exportPNG(targetId));
+      cardEl.querySelector('[data-action="download-svg"]').addEventListener('click', () => exportSVG(targetId));
+      cardEl.querySelector('[data-action="remove"]').addEventListener('click', () => cardEl.remove());
+    }
+
+    function addPanel() {
+      const grid = document.getElementById('chartGrid');
+      const idx = grid.querySelectorAll('.card').length + 1;
+      const targetId = buildPanelId(idx);
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span class="fw-semibold">Panel ${idx}</span>
+          <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-secondary" data-action="download-png"><i class="bi bi-image"></i></button>
+            <button class="btn btn-sm btn-outline-secondary" data-action="download-svg"><i class="bi bi-filetype-svg"></i></button>
+            <button class="btn btn-sm btn-outline-danger" data-action="remove"><i class="bi bi-x-lg"></i></button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div id="${targetId}" style="height:420px" class="w-100"></div>
+          <div class="text-center empty-state" id="empty-${idx}">Build a chart to get started.</div>
+        </div>`;
+      grid.appendChild(card);
+      wirePanelActions(card, targetId);
+      return targetId;
+    }
+
+    async function uploadFile(file) {
+      const spinner = document.getElementById('uploadSpinner');
+      const status = document.getElementById('uploadStatus');
+      spinner.style.display = 'inline-block'; status.textContent = ' Uploading...';
+      try {
+        const form = new FormData();
+        form.append('file', file);
+        const res = await fetch(`${apiBase}/upload`, { method: 'POST', body: form });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || `${res.status}`);
+        status.textContent = ' Uploaded';
+        await refreshMeta();
+      } catch(e) {
+        status.textContent = ` Error: ${e.message}`;
+        setDebug({upload_error: e.message});
+      } finally {
+        spinner.style.display = 'none';
+      }
+    }
+
+    document.getElementById('btnUpload').addEventListener('click', () => {
+      const f = document.getElementById('fileInput').files[0];
+      if (!f) { setDebug('Select a file to upload.'); return; }
+      uploadFile(f);
+    });
+    document.getElementById('btnDownloadSample').addEventListener('click', () => window.location.href = `${apiBase}/sample`);
+    document.getElementById('btnExportCSV').addEventListener('click', exportCSV);
+
+    document.getElementById('btnRefresh').addEventListener('click', async () => {
+      const panels = document.querySelectorAll('#chartGrid .card');
+      if (!panels.length) addPanel();
+      const first = panels[0].querySelector('[id^="chart-"]').id;
+      await buildChart(first);
+    });
+    document.getElementById('btnAddPanel').addEventListener('click', async () => {
+      const target = addPanel();
+      await buildChart(target);
+    });
+    document.getElementById('btnReset').addEventListener('click', async () => {
+      document.getElementById('chartGrid').innerHTML = '';
+      addPanel();
+    });
+
+    document.getElementById('btnCopyDebug').addEventListener('click', async () => {
+      const t = document.getElementById('debugOut').textContent; await navigator.clipboard.writeText(t);
+    });
+
+    // Panel 1 actions
+    wirePanelActions(document.querySelector('#chartGrid .card'), 'chart-1');
+
+    // Load metadata on startup
+    refreshMeta();
+  </script>
 </body>
 </html>
