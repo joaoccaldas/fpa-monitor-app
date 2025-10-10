@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Alerts Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    body { background: radial-gradient(1200px 800px at 10% 10%, #f4e9ff 0, #ffffff 55%); }
+    .card { border: 0; box-shadow: 0 6px 24px rgba(80, 0, 200, .08); }
+    .btn-primary { background: linear-gradient(135deg, #6f42c1, #9356ff); border: 0; }
+    .btn-outline-primary { border-color: #9356ff; color: #6f42c1; }
+    .btn-outline-primary:hover { background: #9356ff; color: #fff; }
+    .form-switch .form-check-input { cursor: pointer; }
+    .table thead th { color:#6f42c1; }
+    .badge-enabled{background:#28a745}
+    .badge-disabled{background:#6c757d}
+    .cursor-pointer{cursor:pointer}
+  </style>
+</head>
+<body>
+<nav class="navbar navbar-expand-lg bg-white border-bottom">
+  <div class="container-fluid">
+    <a class="navbar-brand fw-bold text-primary" href="/">FPA Monitor</a>
+    <div>
+      <a class="btn btn-sm btn-outline-primary" href="/">Overview</a>
+    </div>
+  </div>
+</nav>
+
+<main class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">Alerts</h2>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#alertModal">
+      <i class="bi bi-plus-lg me-1"></i> New alert
+    </button>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12 col-lg-8">
+      <div class="card">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Configured alerts</h5>
+            <div class="text-muted small"><span id="alerts-count">0</span> total</div>
+          </div>
+          <div class="table-responsive">
+            <table class="table align-middle" id="alerts-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>KPI</th>
+                  <th>Condition</th>
+                  <th>Channel</th>
+                  <th>Status</th>
+                  <th class="text-end">Actions</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-lg-4">
+      <div class="card h-100">
+        <div class="card-body">
+          <h5 class="mb-2">Recent alert history</h5>
+          <ul class="list-group" id="history-list"></ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- Create/Edit Modal -->
+<div class="modal fade" id="alertModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form class="modal-content" id="alert-form">
+      <div class="modal-header">
+        <h5 class="modal-title" id="alertModalTitle">New alert</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="alert-id" />
+        <div class="mb-3">
+          <label class="form-label">Name</label>
+          <input type="text" id="name" class="form-control" required />
+        </div>
+        <div class="mb-3">
+          <label class="form-label">KPI</label>
+          <select id="kpi" class="form-select" required>
+            <option value="cpu_usage">CPU Usage</option>
+            <option value="memory_usage">Memory Usage</option>
+            <option value="disk_usage">Disk Usage</option>
+            <option value="response_time">Response Time</option>
+          </select>
+        </div>
+        <div class="row g-2">
+          <div class="col-6">
+            <label class="form-label">Operator</label>
+            <select id="operator" class="form-select" required>
+              <option value=">">&gt;</option>
+              <option value=">=">&gt;=</option>
+              <option value="<">&lt;</option>
+              <option value="<=">&lt;=</option>
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label">Threshold</label>
+            <input type="number" step="any" id="threshold" class="form-control" required />
+          </div>
+        </div>
+        <div class="mt-3">
+          <label class="form-label">Notification channel</label>
+          <select id="channel" class="form-select" required>
+            <option value="email">Email</option>
+            <option value="slack">Slack</option>
+            <option value="webhook">Webhook</option>
+          </select>
+        </div>
+        <div class="form-check form-switch mt-3">
+          <input class="form-check-input" type="checkbox" role="switch" id="enabled" checked>
+          <label class="form-check-label" for="enabled">Enabled</label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  const api = {
+    list: () => fetch('/api/alerts').then(r=>r.json()),
+    create: (payload) => fetch('/api/alerts', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)}).then(r=>r.json()),
+    get: (id) => fetch(`/api/alerts/${id}`).then(r=>r.json()),
+    update: (id, payload) => fetch(`/api/alerts/${id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)}).then(r=>r.json()),
+    del: (id) => fetch(`/api/alerts/${id}`, {method:'DELETE'}).then(r=>r.json()),
+    toggle: (id, enabled) => fetch(`/api/alerts/${id}/toggle`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({enabled})}).then(r=>r.json()),
+    history: (limit=10) => fetch(`/api/alerts/history?limit=${limit}`).then(r=>r.json()),
+  };
+
+  const tableBody = () => document.querySelector('#alerts-table tbody');
+
+  function renderAlerts(list){
+    const tbody = tableBody();
+    tbody.innerHTML = '';
+    list.forEach(a => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="fw-semibold">${a.name}</td>
+        <td>${a.kpi}</td>
+        <td><span class="badge text-bg-light">${a.operator} ${a.threshold}</span></td>
+        <td class="text-capitalize">${a.channel}</td>
+        <td>
+          <span class="badge ${a.enabled ? 'badge-enabled' : 'badge-disabled'}">${a.enabled ? 'Enabled' : 'Disabled'}</span>
+        </td>
+        <td class="text-end">
+          <div class="btn-group">
+            <button class="btn btn-sm btn-outline-primary" data-action="edit" data-id="${a.id}"><i class="bi bi-pencil"></i></button>
+            <button class="btn btn-sm btn-outline-secondary" data-action="toggle" data-id="${a.id}"><i class="bi ${a.enabled ? 'bi-pause' : 'bi-play'}"></i></button>
+            <button class="btn btn-sm btn-outline-danger" data-action="delete" data-id="${a.id}"><i class="bi bi-trash"></i></button>
+          </div>
+        </td>`;
+      tbody.appendChild(tr);
+    });
+    document.getElementById('alerts-count').textContent = list.length;
+  }
+
+  async function loadAlerts(){
+    try{ const data = await api.list(); renderAlerts(data || []);}catch(e){ console.error(e); }
+  }
+
+  async function loadHistory(){
+    try{
+      const items = await api.history(10);
+      const list = document.getElementById('history-list');
+      list.innerHTML = '';
+      (items||[]).forEach(it => {
+        const li = document.createElement('li');
+        li.className = 'list-group-item d-flex justify-content-between align-items-start';
+        li.innerHTML = `<div>
+            <div class="fw-semibold">${it.alert_name || it.alert_id}</div>
+            <div class="small text-muted">${it.kpi} ${it.operator} ${it.threshold} | value: ${it.value}</div>
+          </div>
+          <span class="badge text-bg-${it.status==='triggered'?'danger':'secondary'}">${it.status}</span>`;
+        list.appendChild(li);
+      });
+    }catch(e){ console.error(e); }
+  }
+
+  // Row actions
+  document.addEventListener('click', async (e)=>{
+    const btn = e.target.closest('button[data-action]');
+    if(!btn) return;
+    const id = btn.getAttribute('data-id');
+    const action = btn.getAttribute('data-action');
+    if(action==='delete'){
+      if(confirm('Delete this alert?')){ await api.del(id); await loadAlerts(); }
+      return;
+    }
+    if(action==='toggle'){
+      const row = btn.closest('tr');
+      const enabled = row.querySelector('.badge-enabled') ? false : true;
+      await api.toggle(id, enabled);
+      await loadAlerts();
+      return;
+    }
+    if(action==='edit'){
+      const data = await api.get(id);
+      openModalWith(data);
+    }
+  });
+
+  // Modal helpers
+  const modalEl = document.getElementById('alertModal');
+  const bsModal = new bootstrap.Modal(modalEl);
+
+  function openModalWith(a){
+    document.getElementById('alert-id').value = a.id || '';
+    document.getElementById('name').value = a.name || '';
+    document.getElementById('kpi').value = a.kpi || 'cpu_usage';
+    document.getElementById('operator').value = a.operator || '>';
+    document.getElementById('threshold').value = a.threshold ?? '';
+    document.getElementById('channel').value = a.channel || 'email';
+    document.getElementById('enabled').checked = (a.enabled ?? true);
+    document.getElementById('alertModalTitle').textContent = a.id ? 'Edit alert' : 'New alert';
+    bsModal.show();
+  }
+
+  document.getElementById('alert-form').addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const payload = {
+      name: document.getElementById('name').value.trim(),
+      kpi: document.getElementById('kpi').value,
+      operator: document.getElementById('operator').value,
+      threshold: parseFloat(document.getElementById('threshold').value),
+      channel: document.getElementById('channel').value,
+      enabled: document.getElementById('enabled').checked,
+    };
+    const id = document.getElementById('alert-id').value;
+    if(id){ await api.update(id, payload); }
+    else { await api.create(payload); }
+    bsModal.hide();
+    await loadAlerts();
+  });
+
+  // Initial load
+  loadAlerts();
+  loadHistory();
+</script>
+</body>
+</html>
