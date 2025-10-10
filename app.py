@@ -10,17 +10,61 @@ from flask import Flask, render_template, jsonify, request, send_file, session
 from werkzeug.exceptions import RequestEntityTooLarge, BadRequest
 from openai import OpenAI
 
-app = Flask(__name__)
+# Alerts service
+try:
+    from alerts import (
+        create_alert, get_alerts, get_alert, update_alert, delete_alert, toggle_alert, get_alert_history
+    )
+except Exception as e:
+    # If alerts module not available in runtime, define safe fallbacks to avoid crash
+    logging.warning(f"alerts.py import failed: {e}")
+    _ALERTS: Dict[str, Dict[str, Any]] = {}
+    _HISTORY: list[dict] = []
+    import uuid
+    def _now():
+        return datetime.utcnow().isoformat()
+    def create_alert(payload):
+        aid = payload.get('id') or str(uuid.uuid4())
+        a = {
+            'id': aid,
+            'name': payload.get('name','Alert'),
+            'kpi': payload.get('kpi','cpu_usage'),
+            'operator': payload.get('operator','>'),
+            'threshold': payload.get('threshold', 80),
+            'channel': payload.get('channel','email'),
+            'enabled': bool(payload.get('enabled', True)),
+            'created_at': _now(),
+            'updated_at': _now(),
+        }
+        _ALERTS[aid] = a
+        return a
+    def get_alerts():
+        return list(_ALERTS.values())
+    def get_alert(aid):
+        return _ALERTS.get(aid, {})
+    def update_alert(aid, updates):
+        if aid in _ALERTS:
+            _ALERTS[aid].update({k:v for k,v in updates.items() if k in {'name','kpi','operator','threshold','channel','enabled'}})
+            _ALERTS[aid]['updated_at'] = _now()
+        return _ALERTS.get(aid, {})
+    def delete_alert(aid):
+        return {'deleted': bool(_ALERTS.pop(aid, None))}
+    def toggle_alert(aid, enabled: bool):
+        if aid in _ALERTS:
+            _ALERTS[aid]['enabled'] = bool(enabled)
+            _ALERTS[aid]['updated_at'] = _now()
+        return _ALERTS.get(aid, {})
+    def get_alert_history(limit=10):
+        return _HISTORY[-limit:][::-1]
 
+app = Flask(__name__)
 # Config
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
 app.config['MAX_CONTENT_LENGTH'] = int(os.getenv('MAX_CONTENT_LENGTH', 16 * 1024 * 1024))
 UPLOAD_FOLDER = app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
 logging.basicConfig(level=os.getenv('LOG_LEVEL', 'INFO').upper())
 logger = logging.getLogger(__name__)
-
 ALLOWED_EXT = {'.csv', '.xls', '.xlsx', '.json'}
 dataframe: pd.DataFrame | None = None
 
@@ -60,6 +104,48 @@ def load_to_df(path: str) -> pd.DataFrame:
 @app.route('/')
 def index():
     return render_template('index.html')
+
+# Alerts dashboard page
+@app.route('/alerts')
+def alerts_page():
+    return render_template('alerts.html')
+
+# Alerts API
+@app.route('/api/alerts', methods=['GET'])
+def api_list_alerts():
+    return jsonify(get_alerts())
+
+@app.route('/api/alerts', methods=['POST'])
+def api_create_alert():
+    payload = request.get_json(force=True)
+    return jsonify(create_alert(payload))
+
+@app.route('/api/alerts/<alert_id>', methods=['GET'])
+def api_get_alert(alert_id):
+    return jsonify(get_alert(alert_id))
+
+@app.route('/api/alerts/<alert_id>', methods=['PUT'])
+def api_update_alert(alert_id):
+    payload = request.get_json(force=True)
+    return jsonify(update_alert(alert_id, payload))
+
+@app.route('/api/alerts/<alert_id>', methods=['DELETE'])
+def api_delete_alert(alert_id):
+    return jsonify(delete_alert(alert_id))
+
+@app.route('/api/alerts/<alert_id>/toggle', methods=['POST'])
+def api_toggle_alert(alert_id):
+    payload = request.get_json(force=True)
+    enabled = bool(payload.get('enabled', True))
+    return jsonify(toggle_alert(alert_id, enabled))
+
+@app.route('/api/alerts/history')
+def api_alert_history():
+    try:
+        limit = int(request.args.get('limit', 10))
+    except ValueError:
+        limit = 10
+    return jsonify(get_alert_history(limit))
 
 @app.route('/upload', methods=['POST'])
 def upload():
