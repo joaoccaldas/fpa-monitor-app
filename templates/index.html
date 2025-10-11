@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PingPong — FP&A Monitor Dashboard</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
   <style>
     body { background-color: #f8f9fa; }
@@ -19,7 +19,6 @@
     @media (min-width: 992px) { .chart-grid { grid-template-columns: 1fr 1fr; } }
     .spinner { display:none; }
     .empty-state { color:#6c757d; }
-
     /* Chatbot styles */
     .chatbot-toggle { position: fixed; right: 20px; bottom: 20px; z-index: 1050; }
     .chatbot-panel { position: fixed; right: 20px; bottom: 90px; width: 360px; max-height: 520px; z-index: 1050; display: none; }
@@ -34,232 +33,241 @@
 <body>
   <header class="dashboard-header">
     <div class="container">
-      <div class="d-flex justify-content-between align-items-center">
-        <h1 class="h3 m-0">PingPong</h1>
-        <span class="opacity-75">Minimal FP&A dashboard</span>
-      </div>
+      <h1><i class="bi bi-speedometer2"></i> FP&A Monitor Dashboard</h1>
+      <p class="mb-0">Upload Excel files to analyze financial metrics and generate insights</p>
     </div>
   </header>
 
-  <main class="container mb-5">
-    <div class="row g-4">
-      <!-- Upload -->
-      <div class="col-12">
+  <div class="container">
+    <!-- Upload Section -->
+    <div class="row mb-4">
+      <div class="col">
         <div class="card upload-card">
-          <div class="card-body">
-            <div class="d-flex flex-wrap align-items-center gap-2">
-              <label for="fileInput" class="form-label m-0"><i class="bi bi-cloud-arrow-up"></i> Upload data (CSV/XLSX/JSON)</label>
-              <input id="fileInput" type="file" class="form-control" accept=".csv,.xlsx,.xls,.json" />
-              <button id="btnUpload" class="btn btn-primary"><i class="bi bi-upload"></i> Upload</button>
-              <div id="uploadSpinner" class="spinner-border spinner text-primary" role="status" style="width: 1.5rem; height: 1.5rem;"><span class="visually-hidden">Uploading...</span></div>
-              <span id="uploadStatus" class="ms-2 small text-muted"></span>
-              <div class="ms-auto d-flex gap-2">
-                <button id="btnDownloadSample" class="btn btn-outline-secondary btn-sm"><i class="bi bi-file-earmark-arrow-down"></i> Sample</button>
-                <button id="btnExportCSV" class="btn btn-outline-secondary btn-sm"><i class="bi bi-filetype-csv"></i> Export CSV</button>
-                <button id="btnExportPNG" class="btn btn-outline-secondary btn-sm"><i class="bi bi-image"></i> Export PNG</button>
-              </div>
+          <div class="card-body text-center">
+            <i class="bi bi-cloud-upload display-4 text-primary mb-3"></i>
+            <h5 class="card-title">Upload Your Excel File</h5>
+            <p class="card-text text-muted">Drop your Excel file here or click to browse</p>
+            <input type="file" id="fileUpload" class="form-control mb-3" accept=".xlsx,.xls" multiple>
+            <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+              <button id="btnUpload" class="btn btn-primary btn-lg">
+                <i class="bi bi-upload"></i> Upload Files
+              </button>
+              <button id="btnDownloadSample" class="btn btn-outline-secondary">
+                <i class="bi bi-download"></i> Sample Template
+              </button>
             </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Controls -->
-      <div class="col-12">
-        <div class="card">
-          <div class="card-body">
-            <div class="row g-3 align-items-end">
-              <div class="col-md-3">
-                <label class="form-label">Chart type</label>
-                <select id="chartType" class="form-select">
-                  <option value="line">Line</option>
-                  <option value="bar">Bar</option>
-                  <option value="stacked_bar">Stacked Bar</option>
-                  <option value="area">Area</option>
-                  <option value="pie">Pie</option>
-                  <option value="scatter">Scatter</option>
-                  <option value="heatmap">Heatmap</option>
-                </select>
-              </div>
-              <div class="col-md-3">
-                <label class="form-label">X field</label>
-                <select id="xField" class="form-select"></select>
-              </div>
-              <div class="col-md-3">
-                <label class="form-label">Y field</label>
-                <select id="yField" class="form-select"></select>
-              </div>
-              <div class="col-md-3">
-                <label class="form-label">Group by</label>
-                <select id="groupField" class="form-select"><option value="">None</option></select>
-              </div>
-              <div class="col-12 d-flex justify-content-between mt-2">
-                <div class="chart-toolbar">
-                  <button id="btnRefresh" class="btn btn-primary"><i class="bi bi-bar-chart"></i> Build chart</button>
-                  <button id="btnAddPanel" class="btn btn-outline-primary"><i class="bi bi-layout-split"></i> Add panel</button>
-                  <button id="btnReset" class="btn btn-outline-secondary"><i class="bi bi-arrow-counterclockwise"></i> Reset</button>
-                </div>
-                <div class="d-flex align-items-center gap-2">
-                  <input id="toggleDrilldown" type="checkbox" class="form-check-input" />
-                  <label for="toggleDrilldown" class="form-check-label">Enable drilldown</label>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Charts grid -->
-      <div class="col-12">
-        <div id="chartGrid" class="chart-grid">
-          <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-              <span class="fw-semibold">Panel 1</span>
-              <div class="d-flex gap-2">
-                <button class="btn btn-sm btn-outline-secondary" data-action="download-png"><i class="bi bi-image"></i></button>
-                <button class="btn btn-sm btn-outline-secondary" data-action="download-svg"><i class="bi bi-filetype-svg"></i></button>
-                <button class="btn btn-sm btn-outline-danger" data-action="remove"><i class="bi bi-x-lg"></i></button>
-              </div>
-            </div>
-            <div class="card-body">
-              <div id="chart-1" class="w-100" style="height:420px"></div>
-              <div id="empty-1" class="text-center empty-state">Build a chart to get started.</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Raw response/debug -->
-      <div class="col-12">
-        <div class="card">
-          <div class="card-header d-flex justify-content-between align-items-center">
-            <span class="fw-semibold">Debug console</span>
-            <button id="btnCopyDebug" class="btn btn-sm btn-outline-secondary"><i class="bi bi-clipboard"></i> Copy</button>
-          </div>
-          <div class="card-body">
-            <pre id="debugOut" class="small mb-0">Ready.</pre>
           </div>
         </div>
       </div>
     </div>
-  </main>
 
-  <!-- Chatbot UI -->
-  <button id="chatbotToggle" class="btn btn-primary rounded-circle p-3 chatbot-toggle" title="Chat with PingPong">
-    <i class="bi bi-chat-dots" style="font-size:1.25rem"></i>
-  </button>
-  <div id="chatbotPanel" class="chatbot-panel">
-    <div class="card chatbot-card">
-      <div class="card-header d-flex justify-content-between align-items-center chatbot-header">
-        <span class="fw-semibold">PingPong AI</span>
-        <div class="d-flex gap-2">
-          <button id="chatClear" class="btn btn-sm btn-light text-primary">Clear</button>
-          <button id="chatClose" class="btn btn-sm btn-light">✕</button>
+    <!-- Controls Section -->
+    <div class="row mb-4">
+      <div class="col">
+        <div class="card">
+          <div class="card-body">
+            <div class="d-flex flex-wrap gap-2">
+              <button id="btnExportCSV" class="btn btn-success" disabled>
+                <i class="bi bi-file-earmark-csv"></i> Export CSV
+              </button>
+              <button id="btnRefresh" class="btn btn-info">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+              </button>
+              <button id="btnAddPanel" class="btn btn-warning">
+                <i class="bi bi-plus-square"></i> Add Chart Panel
+              </button>
+              <button id="btnReset" class="btn btn-danger">
+                <i class="bi bi-trash"></i> Reset All
+              </button>
+              <button id="btnCopyDebug" class="btn btn-outline-dark" title="Copy debug info">
+                <i class="bi bi-clipboard"></i> Debug
+              </button>
+            </div>
+          </div>
         </div>
       </div>
-      <div id="chatMessages" class="chatbot-messages"></div>
-      <div class="card-footer">
-        <div class="input-group">
-          <input id="chatInput" type="text" class="form-control" placeholder="Ask anything..." />
-          <button id="chatSend" class="btn btn-primary"><i class="bi bi-send"></i></button>
+    </div>
+
+    <!-- Status Section -->
+    <div class="row mb-4">
+      <div class="col">
+        <div class="alert alert-info" role="alert">
+          <div class="d-flex align-items-center">
+            <div class="spinner-border spinner-border-sm me-2 spinner" role="status" aria-hidden="true"></div>
+            <div id="statusText">Ready to upload files</div>
+          </div>
         </div>
-        <div class="small text-muted mt-1">Powered by configurable LLM backend</div>
+      </div>
+    </div>
+
+    <!-- Metadata Section -->
+    <div class="row mb-4">
+      <div class="col">
+        <div class="card">
+          <div class="card-header">
+            <h6 class="mb-0"><i class="bi bi-info-circle"></i> File Information</h6>
+          </div>
+          <div class="card-body">
+            <div id="metaInfo" class="empty-state">
+              <p><i class="bi bi-inbox"></i> No files uploaded yet</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts Section -->
+    <div id="chartsContainer" class="chart-grid">
+      <!-- Chart panels will be added here dynamically -->
+      <div class="empty-state text-center">
+        <i class="bi bi-graph-up display-4 text-muted mb-3"></i>
+        <h5>No Charts Yet</h5>
+        <p class="text-muted">Upload data and create chart panels to visualize your FP&A metrics</p>
       </div>
     </div>
   </div>
 
-  <script>
-    const apiBase = '';
-    async function fetchJson(url, options={}) {
-      const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...options });
-      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-      return res.json();
-    }
-    function setDebug(data) {
-      const txt = (typeof data === 'string') ? data : JSON.stringify(data, null, 2);
-      document.getElementById('debugOut').textContent = txt;
-    }
-    function populateFields(meta) {
-      const fields = (meta && meta.fields) ? meta.fields : [];
-      const numeric = fields.filter(f => ['int','float','number'].includes((f.type||'').toLowerCase()));
-      const categorical = fields.filter(f => !numeric.includes(f));
-      const xField = document.getElementById('xField');
-      const yField = document.getElementById('yField');
-      const groupField = document.getElementById('groupField');
-      const setOpts = (el, arr) => { el.innerHTML = arr.map(f => `<option value="${f.name}">${f.name}</option>`).join(''); };
-      setOpts(xField, categorical.length?categorical:fields);
-      setOpts(yField, numeric.length?numeric:fields);
-      groupField.innerHTML = '<option value="">None</option>' + fields.map(f => `<option value="${f.name}">${f.name}</option>`).join('');
-    }
-    async function refreshMeta() {
-      try {
-        const meta = await fetchJson(`${apiBase}/meta`);
-        populateFields(meta);
-        setDebug({meta});
-      } catch(e) { setDebug({error: e.message}); }
-    }
-    function buildPanelId(idx) { return `chart-${idx}`; }
-    async function buildChart(targetId) {
-      const chartType = document.getElementById('chartType').value;
-      const x = document.getElementById('xField').value;
-      const y = document.getElementById('yField').value;
-      const group = document.getElementById('groupField').value;
-      try {
-        const payload = { chart_type: chartType, x, y, group, drilldown: document.getElementById('toggleDrilldown').checked };
-        const cfg = await fetchJson(`${apiBase}/chart`, { method: 'POST', body: JSON.stringify(payload) });
-        setDebug(cfg);
-        const layout = cfg.layout || {};
-        layout.uirevision = true; // preserve interactions
-        Plotly.react(targetId, cfg.data || [], layout, cfg.config || {responsive: true, displaylogo: false});
-        const empty = document.getElementById(targetId.replace('chart', 'empty'));
-        if (empty) empty.style.display = 'none';
-      } catch(e) {
-        setDebug({error: e.message});
-      }
-    }
-    function exportCSV() { window.location.href = `${apiBase}/export/csv`; }
-    function exportPNG(targetId) {
-      Plotly.toImage(targetId, {format: 'png', height: 600, width: 1000}).then(url => {
-        const a = document.createElement('a'); a.href = url; a.download = `${targetId}.png`; a.click();
-      });
-    }
-    function exportSVG(targetId) {
-      Plotly.toImage(targetId, {format: 'svg', height: 600, width: 1000}).then(url => {
-        const a = document.createElement('a'); a.href = url; a.download = `${targetId}.svg`; a.click();
-      });
-    }
-    function wirePanelActions(cardEl, targetId) {
-      cardEl.querySelector('[data-action="download-png"]').addEventListener('click', () => exportPNG(targetId));
-      cardEl.querySelector('[data-action="download-svg"]').addEventListener('click', () => exportSVG(targetId));
-      cardEl.querySelector('[data-action="remove"]').addEventListener('click', () => cardEl.remove());
-    }
-    function addPanel() {
-      const grid = document.getElementById('chartGrid');
-      const idx = grid.querySelectorAll('.card').length + 1;
-      const targetId = buildPanelId(idx);
-      const card = document.createElement('div');
-      card.className = 'card';
-      card.innerHTML = `
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <span class="fw-semibold">Panel ${idx}</span>
-          <div class="d-flex gap-2">
-            <button class="btn btn-sm btn-outline-secondary" data-action="download-png"><i class="bi bi-image"></i></button>
-            <button class="btn btn-sm btn-outline-secondary" data-action="download-svg"><i class="bi bi-filetype-svg"></i></button>
-            <button class="btn btn-sm btn-outline-danger" data-action="remove"><i class="bi bi-x-lg"></i></button>
+  <!-- Chatbot -->
+  <button id="chatbotToggle" class="btn btn-primary btn-lg rounded-circle chatbot-toggle">
+    <i class="bi bi-chat-dots"></i>
+  </button>
+
+  <div id="chatbotPanel" class="chatbot-panel">
+    <div class="card chatbot-card h-100">
+      <div class="card-header chatbot-header d-flex justify-content-between align-items-center p-3">
+        <div>
+          <h6 class="mb-0"><i class="bi bi-robot"></i> FP&A Assistant</h6>
+          <small class="opacity-75">Ask about your financial data</small>
+        </div>
+        <button id="chatbotClose" class="btn btn-sm text-white">
+          <i class="bi bi-x-lg"></i>
+        </button>
+      </div>
+      <div id="chatbotMessages" class="chatbot-messages"></div>
+      <div class="card-footer p-3">
+        <div class="input-group">
+          <input type="text" id="chatbotInput" class="form-control" placeholder="Ask about your data..." maxlength="500">
+          <button id="chatbotSend" class="btn btn-primary">
+            <i class="bi bi-send"></i>
+          </button>
+        </div>
+        <div class="d-flex justify-content-between align-items-center mt-2">
+          <small class="text-muted">Press Enter to send</small>
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="chatbotMode" checked>
+            <label class="form-check-label" for="chatbotMode">
+              <small>FP&A Mode</small>
+            </label>
           </div>
         </div>
-        <div class="card-body">
-          <div id="${targetId}" style="height:420px" class="w-100"></div>
-          <div class="text-center empty-state" id="empty-${idx}">Build a chart to get started.</div>
-        </div>`;
-      grid.appendChild(card);
-      wirePanelActions(card, targetId);
-      return targetId;
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    const apiBase = '/api';
+    let chartPanelCounter = 0;
+    let uploadedFiles = [];
+    let panels = {};
+
+    // Utility functions
+    function showStatus(text, isLoading = false) {
+      const statusEl = document.getElementById('statusText');
+      const spinnerEl = document.querySelector('.spinner');
+      statusEl.textContent = text;
+      spinnerEl.style.display = isLoading ? 'inline-block' : 'none';
     }
-    async function uploadFile(file) {
-      const spinner = document.getElementById('uploadSpinner');
-      const status = document.getElementById('uploadStatus');
-      spinner.style.display = 'inline-block'; status.textContent = ' Uploading...';
+
+    function showError(message) {
+      alert(`Error: ${message}`);
+      console.error(message);
+    }
+
+    function updateMeta(files = []) {
+      const metaEl = document.getElementById('metaInfo');
+      if (files.length === 0) {
+        metaEl.innerHTML = '<p><i class="bi bi-inbox"></i> No files uploaded yet</p>';
+        return;
+      }
+      
+      const fileList = files.map(f => `
+        <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
+          <div><strong>${f.name}</strong><br><small class="text-muted">${f.sheets?.join(', ') || 'No sheets'}</small></div>
+          <span class="badge bg-primary">${f.rows || 0} rows</span>
+        </div>
+      `).join('');
+      
+      metaEl.innerHTML = fileList;
+    }
+
+    // Upload functionality
+    async function uploadFile() {
+      const fileInput = document.getElementById('fileUpload');
+      const files = fileInput.files;
+      
+      if (!files.length) {
+        showError('Please select files to upload');
+        return;
+      }
+
+      showStatus('Uploading files...', true);
+      
       try {
         const form = new FormData();
-        form.append('file', file);
+        for (let file of files) {
+          form.append('files', file);
+        }
+        
         const res = await fetch(`${apiBase}/upload`, { method: 'POST', body: form });
+        if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+        
+        const result = await res.json();
+        uploadedFiles = result.files || [];
+        updateMeta(uploadedFiles);
+        showStatus(`Successfully uploaded ${files.length} file(s)`);
+        document.getElementById('btnExportCSV').disabled = false;
+        
+      } catch (err) {
+        showError(err.message);
+        showStatus('Upload failed');
+      }
+    }
+
+    // Event listeners
+    document.getElementById('btnUpload').addEventListener('click', uploadFile);
+    document.getElementById('btnDownloadSample').addEventListener('click', () => window.open(`${apiBase}/sample`, '_blank'));
+    document.getElementById('btnExportCSV').addEventListener('click', () => window.open(`${apiBase}/export`, '_blank'));
+    
+    document.getElementById('btnRefresh').addEventListener('click', async () => {
+      showStatus('Refreshing metadata...', true);
+      try {
+        await refreshMeta();
+        showStatus('Metadata refreshed');
+      } catch (err) {
+        showError(err.message);
+      }
+    });
+    
+    document.getElementById('btnAddPanel').addEventListener('click', () => {
+      addChartPanel();
+    });
+    
+    document.getElementById('btnReset').addEventListener('click', () => {
+      if (confirm('Reset all data and charts?')) {
+        resetAll();
+      }
+    });
+    
+    document.getElementById('btnCopyDebug').addEventListener('click', () => {
+      copyDebugInfo();
+    });
+
+    // Panel 1 actions
+    wirePanel1Actions();
+
+    // Initial load
+    refreshMeta();
+  </script>
+</body>
+</html>
