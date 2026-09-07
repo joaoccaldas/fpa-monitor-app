@@ -67,8 +67,34 @@ class MetricMonitor:
         Returns:
             List of metric dictionaries
         """
-        # TODO: Implement actual data source integration
-        # This is a placeholder that generates sample data
+        # Synthetic data is an explicit demo mode, never a production fallback.
+        if not self.config.get('demo', False):
+            source = self.config.get('metrics_file') or os.getenv('METRICS_FILE')
+            if not source:
+                raise ValueError('Configure metrics_file / METRICS_FILE, or explicitly enable demo mode')
+            with open(source, encoding='utf-8') as handle:
+                rows = json.load(handle)
+            if not isinstance(rows, list) or not rows:
+                raise ValueError('Metrics file must contain a non-empty JSON array')
+            from datetime import timezone
+            utc = lambda d: d.replace(tzinfo=timezone.utc) if d.tzinfo is None else d.astimezone(timezone.utc)
+            selected = []
+            seen = set()
+            for row in rows:
+                if not isinstance(row, dict) or not row.get('date'):
+                    raise ValueError('Each observation needs a date')
+                date = utc(datetime.fromisoformat(row['date'].replace('Z', '+00:00')))
+                if date in seen:
+                    raise ValueError('Duplicate observation date')
+                seen.add(date)
+                if utc(start_date) <= date <= utc(end_date):
+                    selected.append(row)
+            if not selected:
+                raise ValueError('No observations within the requested period')
+            selected.sort(key=lambda row: utc(datetime.fromisoformat(row['date'].replace('Z', '+00:00'))))
+            self.metrics_history.extend(selected)
+            return selected
+        logger.warning('DEMO MODE: synthetic metrics, not business observations')
         logger.info(f"Fetching metrics from {start_date} to {end_date}")
         
         metrics = []
@@ -103,7 +129,10 @@ class MetricMonitor:
         threshold = self.config['anomaly_threshold']
         
         for metric_name in self.config['metrics']:
-            values = [m[metric_name] for m in metrics if metric_name in m]
+            observations = [(m, m[metric_name]) for m in metrics if metric_name in m]
+            values = [v for _, v in observations]
+            if any(isinstance(v, bool) or not isinstance(v, (int, float)) or not np.isfinite(v) for v in values):
+                raise ValueError(f'Invalid numeric values for {metric_name}')
             
             if len(values) < 3:
                 continue
@@ -111,7 +140,7 @@ class MetricMonitor:
             mean = np.mean(values)
             std = np.std(values)
             
-            for i, (metric_dict, value) in enumerate(zip(metrics, values)):
+            for metric_dict, value in observations:
                 z_score = abs((value - mean) / std) if std > 0 else 0
                 
                 if z_score > threshold:
@@ -159,6 +188,7 @@ class MetricMonitor:
         """
         insights = {
             'timestamp': datetime.now().isoformat(),
+            'data_mode': 'synthetic_demo' if self.config.get('demo', False) else 'file',
             'period': {
                 'start': metrics[0]['date'] if metrics else None,
                 'end': metrics[-1]['date'] if metrics else None
@@ -321,6 +351,8 @@ def main():
         help='Path to configuration file'
     )
     
+    parser.add_argument('--demo', action='store_true', help='Explicitly use synthetic data')
+    parser.add_argument('--input', help='Private JSON observations file')
     args = parser.parse_args()
     
     # Load config if provided
@@ -336,6 +368,9 @@ def main():
     
     # Initialize monitor
     monitor = MetricMonitor(config)
+    monitor.config['demo'] = args.demo
+    if args.input:
+        monitor.config['metrics_file'] = args.input
     
     # Run analysis
     try:

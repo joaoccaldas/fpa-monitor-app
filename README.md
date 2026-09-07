@@ -1,17 +1,7 @@
-IyBGUCZBIE1vbml0b3IgQXBwCgoqKkZpbmFuY2lhbCBQbGFubmluZyAmIEFu
-YWx5c2lzIE1ldHJpYyBNb25pdG9yaW5nKioKCkFQJkEgbWV0cmljIG1vbml0
-b3JpbmcgYXBwbGljYXRpb24gd2l0aCBhbm9tYWx5IGRldGVjdGlvbiBhbmQg
-YXV0b21hdGVkIGluc2lnaHRzLiBIZWxwcyBmaW5hbmNlIHRlYW1zIG1vbml0
-b3Iga2V5IG1ldHJpY3MsIGRldGVjdCB1bnVzdWFsIHBhdHRlcm5zLCBhbmQg
-cmVjZWl2ZSBhY3Rpb25hYmxlIHJlY29tbWVuZGF0aW9ucy4KCiMjIEZlYXR1
-cmVzCi0gQXV0b21hdGVkIE1ldHJpYyBNb25pdG9yaW5nOiBUcmFjayByZXZl
-bnVlLCBleHBlbnNlcywgcHJvZml0IG1hcmdpbnMsIGNhc2ggZmxvdywgQUIv
-QVIgZGF5cwotIEFub21hbHkgRGV0ZWN0aW9uOiBTdGF0aXN0aWNhbCBhbmFs
-eXNpcyB1c2luZyB6LXNjb3JlcwotIEF1dG9tYXRlZCBJbnNpZ2h0czogR2Vu
-ZXJhdGUgYWN0aW9uYWJsZSByZWNvbW1lbmRhdGlvbnMKLSBGbGV4aWJsZSBD
-b25maWd1cmF0aW9uOiBDdXN0b21pemUgdGhyZXNob2xkcyB2aWEgZW52aXJv
-bm1lbnQgdmFyaWFibGVzCi0gQ29tcHJlaGVuc2l2ZSBMb2dnaW5nOiBUcmFj
-ayBhbmFseXNpcyBydW5zCi0gSlNPTiBFeHBvcnQ6IEV4cG9ydCBkZXRhaWxl
-ZCByZXN1bHRzCgojIyBTdGF0dXMKQ29tcGxldGUuIEJ1aWx0IGZvciBmaW5h
-bmNpYWwgbWV0cmljIG1vbml0b3JpbmcgYXQgTWllbGUuCgoqIkJ1aWx0IGJ5
-IEpryZv28IENhbGRhcyB8IGpvYW9jY2FsZGFzQGdtYWlsLmNvbSIqKgo=
+# FP&A Monitor App
+
+Statistical financial monitoring prototype. Use `python monitor.py --input /private/observations.json --days 30` for a JSON array of dated observations. Synthetic generation is opt-in using `--demo`; it is never a live feed. Missing metric rows retain their original dates during anomaly scoring. Invalid numeric observations are rejected.
+
+Each observation contains an ISO `date` and financial metrics such as revenue, expenses, profit_margin, cash_flow, ar_days and ap_days. Run `python -m unittest discover -v`.
+
+Commercial gaps: a provider connector, causal out-of-sample anomaly baselines, configurable currency/units, customer onboarding, scheduling, authentication and persistence. Whole-window z-scores describe the sample; they are not predictive anomaly detection. No employer deployment or business impact is asserted.
