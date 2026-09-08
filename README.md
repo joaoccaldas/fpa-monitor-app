@@ -1,17 +1,29 @@
-IyBGUCZBIE1vbml0b3IgQXBwCgoqKkZpbmFuY2lhbCBQbGFubmluZyAmIEFu
-YWx5c2lzIE1ldHJpYyBNb25pdG9yaW5nKioKCkFQJkEgbWV0cmljIG1vbml0
-b3JpbmcgYXBwbGljYXRpb24gd2l0aCBhbm9tYWx5IGRldGVjdGlvbiBhbmQg
-YXV0b21hdGVkIGluc2lnaHRzLiBIZWxwcyBmaW5hbmNlIHRlYW1zIG1vbml0
-b3Iga2V5IG1ldHJpY3MsIGRldGVjdCB1bnVzdWFsIHBhdHRlcm5zLCBhbmQg
-cmVjZWl2ZSBhY3Rpb25hYmxlIHJlY29tbWVuZGF0aW9ucy4KCiMjIEZlYXR1
-cmVzCi0gQXV0b21hdGVkIE1ldHJpYyBNb25pdG9yaW5nOiBUcmFjayByZXZl
-bnVlLCBleHBlbnNlcywgcHJvZml0IG1hcmdpbnMsIGNhc2ggZmxvdywgQUIv
-QVIgZGF5cwotIEFub21hbHkgRGV0ZWN0aW9uOiBTdGF0aXN0aWNhbCBhbmFs
-eXNpcyB1c2luZyB6LXNjb3JlcwotIEF1dG9tYXRlZCBJbnNpZ2h0czogR2Vu
-ZXJhdGUgYWN0aW9uYWJsZSByZWNvbW1lbmRhdGlvbnMKLSBGbGV4aWJsZSBD
-b25maWd1cmF0aW9uOiBDdXN0b21pemUgdGhyZXNob2xkcyB2aWEgZW52aXJv
-bm1lbnQgdmFyaWFibGVzCi0gQ29tcHJlaGVuc2l2ZSBMb2dnaW5nOiBUcmFj
-ayBhbmFseXNpcyBydW5zCi0gSlNPTiBFeHBvcnQ6IEV4cG9ydCBkZXRhaWxl
-ZCByZXN1bHRzCgojIyBTdGF0dXMKQ29tcGxldGUuIEJ1aWx0IGZvciBmaW5h
-bmNpYWwgbWV0cmljIG1vbml0b3JpbmcgYXQgTWllbGUuCgoqIkJ1aWx0IGJ5
-IEpryZv28IENhbGRhcyB8IGpvYW9jY2FsZGFzQGdtYWlsLmNvbSIqKgo=
+# FP&A Monitor App
+
+**Financial Planning & Analysis metric monitoring with anomaly detection and automated insights.** Helps finance teams watch key metrics, catch unusual movements early, and turn them into actionable recommendations.
+
+## Features
+
+- **Automated metric monitoring** — revenue, expenses, profit margins, cash flow, AP/AR days
+- **Anomaly detection** — statistical analysis using z-scores
+- **Automated insights** — generated, plain-language recommendations
+- **Flexible configuration** — tune thresholds via environment variables
+- **Comprehensive logging** — every analysis run is traceable
+- **JSON export** — detailed results for downstream use
+
+## Getting started
+
+```bash
+pip install -r requirements.txt
+python -m app   # entry point may vary — see the source
+```
+
+Configure metric thresholds and data sources via environment variables.
+
+## Status
+
+Complete — built for finance-team metric monitoring.
+
+---
+
+Built by [João Caldas](https://github.com/joaoccaldas).
